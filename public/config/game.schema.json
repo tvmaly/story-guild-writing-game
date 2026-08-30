@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "The Story Guild Game Manifest V1",
+  "type": "object",
+  "required": ["schemaVersion", "characters", "audio"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "characters": { "type": "object", "required": ["player", "rowan", "pip", "mira", "tink", "sage"] },
+    "audio": {
+      "type": "object",
+      "required": ["enabledByDefault", "masterVolume", "cues"],
+      "properties": {
+        "enabledByDefault": { "const": false },
+        "masterVolume": { "type": "number", "minimum": 0, "maximum": 1 },
+        "cues": { "type": "object" }
+      }
+    }
+  }
+}

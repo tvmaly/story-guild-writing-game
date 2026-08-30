@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="64" viewBox="0 0 48 64" shape-rendering="crispEdges">
+  <defs>
+    <g id="pose-a">
+      <rect x="5" y="2" width="6" height="5" fill="#ffffff"/>
+      <rect x="4" y="7" width="8" height="6" fill="#d0d0d0"/>
+      <rect x="5" y="13" width="2" height="2" fill="#ffffff"/>
+      <rect x="9" y="13" width="2" height="2" fill="#ffffff"/>
+      <rect x="6" y="4" width="1" height="1" fill="#10182c"/>
+      <rect x="9" y="4" width="1" height="1" fill="#10182c"/>
+    </g>
+    <g id="pose-b">
+      <rect x="5" y="2" width="6" height="5" fill="#ffffff"/>
+      <rect x="4" y="7" width="8" height="6" fill="#d0d0d0"/>
+      <rect x="4" y="13" width="2" height="2" fill="#ffffff"/>
+      <rect x="10" y="12" width="2" height="2" fill="#ffffff"/>
+      <rect x="6" y="4" width="1" height="1" fill="#10182c"/>
+      <rect x="9" y="4" width="1" height="1" fill="#10182c"/>
+    </g>
+    <g id="pose-c">
+      <rect x="5" y="2" width="6" height="5" fill="#ffffff"/>
+      <rect x="4" y="7" width="8" height="6" fill="#d0d0d0"/>
+      <rect x="4" y="12" width="2" height="2" fill="#ffffff"/>
+      <rect x="10" y="13" width="2" height="2" fill="#ffffff"/>
+      <rect x="6" y="4" width="1" height="1" fill="#10182c"/>
+      <rect x="9" y="4" width="1" height="1" fill="#10182c"/>
+    </g>
+  </defs>
+  <g fill="none">
+    <use href="#pose-a" x="0" y="0"/><use href="#pose-b" x="16" y="0"/><use href="#pose-c" x="32" y="0"/>
+    <use href="#pose-a" x="0" y="16"/><use href="#pose-b" x="16" y="16"/><use href="#pose-c" x="32" y="16"/>
+    <use href="#pose-a" x="0" y="32"/><use href="#pose-b" x="16" y="32"/><use href="#pose-c" x="32" y="32"/>
+    <use href="#pose-a" x="0" y="48"/><use href="#pose-b" x="16" y="48"/><use href="#pose-c" x="32" y="48"/>
+  </g>
+</svg>

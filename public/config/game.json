@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "characters": {
+    "player": { "displayName": "Apprentice", "spriteUrl": "assets/sprites/adventurer.png", "frameWidth": 16, "frameHeight": 16, "scale": 1, "tint": "#f5c451", "animations": { "idleDown": [0], "walkDown": [0, 1, 2], "idleLeft": [3], "walkLeft": [3, 4, 5], "idleRight": [6], "walkRight": [6, 7, 8], "idleUp": [9], "walkUp": [9, 10, 11] } },
+    "rowan": { "displayName": "Rowan", "spriteUrl": "assets/sprites/adventurer.png", "frameWidth": 16, "frameHeight": 16, "scale": 1, "tint": "#ef8354", "animations": { "idleDown": [0], "walkDown": [0, 1, 2], "idleLeft": [3], "walkLeft": [3, 4, 5], "idleRight": [6], "walkRight": [6, 7, 8], "idleUp": [9], "walkUp": [9, 10, 11] } },
+    "pip": { "displayName": "Pip", "spriteUrl": "assets/sprites/adventurer.png", "frameWidth": 16, "frameHeight": 16, "scale": 1, "tint": "#63c7da", "animations": { "idleDown": [0], "walkDown": [0, 1, 2], "idleLeft": [3], "walkLeft": [3, 4, 5], "idleRight": [6], "walkRight": [6, 7, 8], "idleUp": [9], "walkUp": [9, 10, 11] } },
+    "mira": { "displayName": "Mira", "spriteUrl": "assets/sprites/adventurer.png", "frameWidth": 16, "frameHeight": 16, "scale": 1, "tint": "#c17ae0", "animations": { "idleDown": [0], "walkDown": [0, 1, 2], "idleLeft": [3], "walkLeft": [3, 4, 5], "idleRight": [6], "walkRight": [6, 7, 8], "idleUp": [9], "walkUp": [9, 10, 11] } },
+    "tink": { "displayName": "Tink", "spriteUrl": "assets/sprites/adventurer.png", "frameWidth": 16, "frameHeight": 16, "scale": 1, "tint": "#86c06c", "animations": { "idleDown": [0], "walkDown": [0, 1, 2], "idleLeft": [3], "walkLeft": [3, 4, 5], "idleRight": [6], "walkRight": [6, 7, 8], "idleUp": [9], "walkUp": [9, 10, 11] } },
+    "sage": { "displayName": "Sage", "spriteUrl": "assets/sprites/adventurer.png", "frameWidth": 16, "frameHeight": 16, "scale": 1, "tint": "#f1e7c5", "animations": { "idleDown": [0], "walkDown": [0, 1, 2], "idleLeft": [3], "walkLeft": [3, 4, 5], "idleRight": [6], "walkRight": [6, 7, 8], "idleUp": [9], "walkUp": [9, 10, 11] } }
+  },
+  "audio": {
+    "enabledByDefault": false,
+    "masterVolume": 0.7,
+    "cues": {}
+  }
+}
