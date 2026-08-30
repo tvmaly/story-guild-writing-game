@@ -362,6 +362,14 @@ export class AppController {
     await this.mutate((save) => { save.settings.soundEnabled = enabled; });
   }
 
+  async setTextScale(scale: SaveDataV1['settings']['textScale']): Promise<void> {
+    await this.mutate((save) => { save.settings.textScale = scale; });
+  }
+
+  async setReducedMotion(enabled: boolean): Promise<void> {
+    await this.mutate((save) => { save.settings.reducedMotion = enabled; });
+  }
+
   async resetProgress(confirmation: string): Promise<void> {
     if (confirmation !== 'RESET') throw new Error('Type RESET to clear progress.');
     this.options.repository.clear();

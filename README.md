@@ -2,7 +2,7 @@
 
 Summary: The Story Guild is a local-first iPad Safari adventure game that helps a third-grade student write complete micro stories. The current release contains the engineering foundation and the complete Quest 1 vertical slice.
 
-Status: Milestones 0 and 1 implementation
+Status: Milestones 0 and 1 implementation; local iPad Simulator suites pass; deployed Pages and physical-iPad gates remain
 
 Keywords: Story Guild writing game; micro stories; Quest 1; iPad Safari; Phaser; Vite; TypeScript; GitHub Pages; sprite configuration; audio configuration
 
@@ -28,6 +28,34 @@ python3 -m http.server 4173 -d dist
 ```
 
 Open `http://127.0.0.1:4173/?test=1`. Do not open `dist/index.html` with `file://`.
+
+## iPad Simulator Verification
+
+Purpose: `npm run test:ios-sim` runs the Milestones 0–1 production build through Mobile Safari on two Xcode simulators. It covers the complete local quest lifecycle on `iPad (A16)`, constrained portrait/landscape behavior on `iPad mini (A17 Pro)`, and GitHub Pages smoke tests only after the deployed files match the local `dist` files byte for byte.
+
+Requirement: Install Xcode with an iOS Simulator runtime, Node.js, Appium, and Appium's XCUITest driver. The verified toolchain on 2026-08-30 was Xcode 26.6, iOS Simulator 26.5, Appium 3.7.0, and XCUITest driver 12.8.2.
+
+```sh
+npm install --global appium
+appium driver install xcuitest
+appium driver list --installed
+xcrun simctl list devices available
+npm run test:ios-sim
+```
+
+Expected devices: The default simulator names are `iPad (A16)` and `iPad mini (A17 Pro)`. Override them when equivalent installed devices use different names:
+
+```sh
+IOS_SIM_PRIMARY="iPad (A16)" IOS_SIM_SECONDARY="iPad mini (A17 Pro)" npm run test:ios-sim
+```
+
+Expected result before deployment: Both local device suites pass, while the command exits nonzero at the GitHub Pages artifact-parity gate if the current build has not been committed, pushed, and deployed. After deployment finishes, rerun the same command; parity and the two Pages smoke suites must also pass.
+
+Artifacts: Each run writes an ignored directory under `test-results/ios-simulator/` containing `results.md`, `results.json`, screenshots, and process logs. The runner shuts down only simulators that it booted, uses isolated `storyGuild.test.*` storage for mutation helpers, and never exposes those helpers at the normal URL.
+
+Manual simulator checks: Use the saved screenshots as checkpoints, then manually tap the writing field to inspect actual software-keyboard placement, close and reopen a Safari tab, inspect portrait and landscape print page breaks, and complete one normally paced lesson for visible frame drops. WebDriver text injection does not itself summon the iPadOS software keyboard.
+
+Constraint: Simulator evidence is useful preflight evidence, but it does not replace the physical-iPad Safari checklist below.
 
 ## Character and Sound Configuration
 

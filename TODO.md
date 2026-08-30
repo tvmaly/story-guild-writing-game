@@ -1,8 +1,8 @@
-# The Story Guild — Resume TODO — 2026-08-29
+# The Story Guild — Resume TODO — 2026-08-30
 
 Summary: Resume The Story Guild by preserving the completed Milestones 0–1 vertical slice, deploying and testing it on a physical iPad, then implementing Milestone 2 Lessons 2–8 before starting the capstone. This file lists unfinished work in required order.
 
-Status: current; Milestones 0–1 automated checks pass, but the physical iPad and GitHub Pages gates remain unfinished
+Status: current; Milestones 0–1 unit/build and local iPad Simulator suites pass, but the deployed Pages, manual Simulator, and physical-iPad gates remain unfinished
 
 Keywords: Story Guild TODO; resume session; next steps; Milestone 2; Lessons 2–8; physical iPad Safari test; GitHub Pages deployment; Quest 1; npm run verify; PLAN.md
 
@@ -20,7 +20,7 @@ npm audit
 npm run preview -- --port 4173
 ```
 
-Expected: `npm run verify` passes 8 Vitest files and 26 tests, strict TypeScript passes, and the production build succeeds. `npm audit` reports zero vulnerabilities. Opening `http://127.0.0.1:4173/?test=1` displays `ALL PASS` with `document.body.dataset.testStatus === "pass"`.
+Expected: `npm run verify` passes 9 Vitest files and 28 tests, strict TypeScript passes, and the production build succeeds. `npm audit` reports zero vulnerabilities. Opening `http://127.0.0.1:4173/?test=1` displays `ALL PASS` with `document.body.dataset.testStatus === "pass"`.
 
 Constraint: Use HTTP serving, not `file://`. Keep test data isolated under `storyGuild.test.*`; do not alter `storyGuild.save.v1` or `storyGuild.backup.v1` during automated tests.
 
@@ -34,6 +34,23 @@ Constraint: Use HTTP serving, not `file://`. Keep test data isolated under `stor
 - [ ] Open the normal deployed URL and complete a Quest 1 smoke test without using the test API.
 
 Expected: GitHub Pages serves the same relative-path build tested locally. The deployed runtime loads `config/game.json` and `assets/sprites/adventurer.png` from the repository subpath.
+
+## Simulator Gate: Finish Deployment and Visual Checks
+
+Completed evidence: On 2026-08-30, `npm run test:ios-sim` passed the complete local flow on `iPad (A16)` and the constrained-layout suite on `iPad mini (A17 Pro)`, using Xcode 26.6 and iOS Simulator 26.5. Evidence is in the ignored run directory `test-results/ios-simulator/2026-08-30T04-29-05Z/`.
+
+Current blocker: The same run correctly failed only the deployment parity check because GitHub Pages did not contain the new local asset `assets/index-B3WkWkjx.js`. Commit, push, wait for the Pages workflow, and rerun the same command.
+
+- [x] Automate both required Simulator form factors through one npm command.
+- [x] Verify onboarding, touch controls, Quest 1 classification and hints, reflection, writing, review, copy, completion, replay, deterministic state, reload/resume, background/resume, Parent Area hold behavior, accessibility persistence, and the native print sheet.
+- [x] Save screenshots, JSON results, Markdown results, and Appium logs per run.
+- [ ] Rerun `npm run test:ios-sim` after Pages deployment and require artifact parity plus Pages smoke tests on both devices.
+- [ ] Manually tap the writing field in portrait and landscape and inspect software-keyboard placement and focus zoom; Appium text injection cannot prove keyboard appearance.
+- [ ] Manually close and reopen the Safari tab and confirm the resume prompt restores the exact phase.
+- [ ] Manually inspect portrait and landscape print-sheet page breaks and readability.
+- [ ] Complete one normally paced Simulator lesson and note visible frame drops or touch delays.
+
+Expected: A post-deployment run reports all automated checks passing, and the dated manual Simulator observations are added to `MILESTONE_01_REPORT.md` or a separate test report.
 
 ## Blocking Gate Before Quest 2: Physical iPad Safari Verification
 
@@ -58,10 +75,10 @@ Decision: Do not start Quest 2 until the physical iPad smoke-test defects are re
 ## Pre-Milestone-2 Hardening TODO
 
 - [ ] Add automated controller coverage proving a save commits before `STATE_COMMITTED` and duplicate pending taps produce only one transition.
-- [ ] Add browser acceptance coverage for reload/resume from puzzle, reflection, review, and copy phases; writing reload was manually verified but should become deterministic automation.
+- [ ] Add the remaining browser acceptance coverage for reload/resume specifically from reflection, review, and copy phases. The Simulator runner now covers deterministic reload/resume during puzzle, writing, and completion.
 - [ ] Add browser coverage for corrupted-primary recovery and the unrecoverable primary-plus-backup confirmation flow.
-- [ ] Complete the development test API phase helpers instead of leaving `moveToPhase` limited to the current Quest 1 shortcuts.
-- [ ] Decide with the product owner whether the existing `large` text and `reducedMotion` save settings need user-facing controls before Milestone 2. Do not invent the UI without asking.
+- [x] Complete the development test API phase helpers needed for deterministic Quest 1 Simulator coverage.
+- [x] Add Parent Area controls for 20% larger text and reduced motion, persist both settings, and cover them in unit and Simulator tests.
 - [ ] Evaluate the non-failing Vite large-chunk warning for the locally bundled Phaser code. Optimize only if iPad loading or memory measurements show a real problem.
 
 ## Milestone 2 TODO: Implement Lessons 2–8
@@ -122,4 +139,4 @@ Constraint: Do not add combat, weapons, enemies, health, lives, currency, loot, 
 - Completed automated evidence: `MILESTONE_01_REPORT.md`
 - Build, test, deployment, and configuration instructions: `README.md`
 
-Open decision: The only known product decision to ask before Milestone 2 is whether large-text and reduced-motion settings require user-facing controls in the next milestone. Ask the product owner and wait for the answer before implementing that UI.
+Open decisions: None currently recorded. Ask the product owner and wait whenever a new implementation choice has more than one materially different outcome.

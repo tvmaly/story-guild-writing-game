@@ -47,4 +47,14 @@ describe('SaveRepository', () => {
   it('rejects unsupported future schemas', () => {
     expect(validateSaveData({ ...save(), schemaVersion: 2 })).toBe(false);
   });
+
+  it('rejects invalid persisted accessibility settings', () => {
+    const invalidScale = structuredClone(save()) as unknown as { settings: Record<string, unknown> };
+    invalidScale.settings.textScale = 'huge';
+    expect(validateSaveData(invalidScale)).toBe(false);
+
+    const invalidMotion = structuredClone(save()) as unknown as { settings: Record<string, unknown> };
+    invalidMotion.settings.reducedMotion = 'yes';
+    expect(validateSaveData(invalidMotion)).toBe(false);
+  });
 });

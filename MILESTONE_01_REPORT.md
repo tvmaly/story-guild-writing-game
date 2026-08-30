@@ -1,8 +1,8 @@
 # The Story Guild — Milestones 0 and 1 Completion Report — 2026-08-29
 
-Summary: The strict TypeScript/Phaser foundation and the complete Quest 1 vertical slice are implemented. Automated unit, build, browser self-test, persistence, responsive-layout, Parent Area, and print-preview gates pass.
+Summary: The strict TypeScript/Phaser foundation and the complete Quest 1 vertical slice are implemented. Automated unit, build, browser self-test, persistence, responsive-layout, Parent Area, accessibility, local iPad Simulator, and native print-sheet gates pass.
 
-Status: automated gates passed; physical iPad Safari gate remains manual
+Status: local automated gates passed; GitHub Pages deployment parity, manual Simulator observations, and physical-iPad Safari remain open
 
 Keywords: Story Guild Milestone 0; Story Guild Milestone 1; Quest 1 vertical slice; ALL PASS; iPad Safari manual verification; npm run verify; browser self-test; GitHub Pages
 
@@ -24,7 +24,7 @@ Educational constraint: The application records and displays the child's wording
 
 Command: `npm run verify`
 
-Expected and observed: 8 Vitest files passed with 26 tests; strict TypeScript passed; Vite 7.3.6 produced the production build. Vite reports a non-failing large-chunk warning because Phaser is bundled locally.
+Expected and observed: 9 Vitest files passed with 28 tests; strict TypeScript passed; Vite 7.3.6 produced the production build. Vite reports a non-failing large-chunk warning because Phaser is bundled locally.
 
 Command: `npm audit`
 
@@ -37,6 +37,24 @@ Observed: Browser error output was empty. Every application request returned HTT
 Observed: A sequential UI walkthrough verified D-pad movement, Quest Board interaction, one incorrect classification, the hint after two incorrect attempts, correct recovery, reload/resume with seed `24680`, exact preservation of a nine-word draft, review, copy, completion, the 1.2-second Parent Area hold, print content, and the Print button handler.
 
 Observed responsive layouts: 1024×768 landscape, 768×1024 portrait, and 390×844 narrow portrait had no horizontal overflow. Exploration/puzzle layouts kept controls visible; writing and copy modes hid game motion and fit without scrolling at 390×844.
+
+## Verification: iPad Simulator Results
+
+Command: `npm run test:ios-sim`
+
+Environment: Xcode 26.6 build 17F113, iOS Simulator 26.5 build 23F73, Appium 3.7.0, and XCUITest driver 12.8.2. Tested devices were `iPad (A16)` and `iPad mini (A17 Pro)`.
+
+Observed local result on 2026-08-30: Both device suites passed. The A16 completed the full Milestones 0–1 lifecycle in 38.835 seconds. The mini completed the constrained-layout suite in 21.443 seconds. Evidence and screenshots are under the ignored local directory `test-results/ios-simulator/2026-08-30T04-29-05Z/`.
+
+Covered on A16: onboarding, every D-pad direction, action interaction, portrait/landscape rotation, all classification tablets, incorrect-answer feedback, two-attempt hinting, background/resume, reflection, writing and autosave, focus retention, no input zoom, review, copy, completion reload, replay with a new seed and preserved prior attempt, mid-puzzle reload, short and long Parent Area holds, 20% larger text, reduced motion, settings persistence, print preview, and the native iPad print sheet.
+
+Covered on iPad mini: browser self-test, portrait and landscape layout health, exploration rotation, writing focus and zoom safety, completion persistence, Parent Area larger text, and copy-mode layout with larger text.
+
+Diagnostic instrumentation: Test mode records browser errors, unhandled rejections, and Phaser asset-load errors; both passing local suites recorded no runtime diagnostics. Stable `data-testid` attributes remain inert in normal use, while diagnostic snapshots and deterministic mutation helpers are exposed only at a `?test=1` URL.
+
+Known automation boundary: Appium can inject writing text without summoning the software keyboard. Focus, input font size, viewport scale, rotation retention, and visible input geometry are automated; actual keyboard placement remains a manual Simulator and physical-device observation.
+
+Deployment result: The run reported GitHub Pages artifact parity as failed because the uncommitted build asset `assets/index-B3WkWkjx.js` returned HTTP 404. The HTTP 404 is expected before commit/push/deployment. After Pages deploys, rerun the same command; the Simulator runner will require SHA-256 parity for every `dist` file before running normal and test-mode Pages smoke checks on both simulators.
 
 ## Manual Gate: Physical iPad Safari
 

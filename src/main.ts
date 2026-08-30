@@ -2,6 +2,7 @@ import './styles/app.css';
 import { AppController } from './app/AppController';
 import { APP_CONFIG } from './config';
 import { EventBus } from './core/EventBus';
+import { RuntimeDiagnostics } from './core/RuntimeDiagnostics';
 import { createGame } from './game/createGame';
 import { AudioService, BrowserAudioAdapter } from './services/AudioService';
 import { ConfigRepository } from './services/ConfigRepository';
@@ -10,10 +11,9 @@ import { SelfTestRunner } from './test/SelfTestRunner';
 import { createTestApi } from './test/TestApi';
 import { AppShell } from './ui/AppShell';
 
-async function main(): Promise<void> {
+async function main(testMode: boolean, diagnostics?: RuntimeDiagnostics): Promise<void> {
   const root = document.querySelector<HTMLElement>('#app');
   if (!root) throw new Error('Application root is missing.');
-  const testMode = new URLSearchParams(window.location.search).get('test') === '1';
   const autoRunTests = new URLSearchParams(window.location.search).get('autorun') !== '0';
   const storage = new LocalStorageAdapter();
   const normalSaveSnapshot = {
@@ -43,18 +43,23 @@ async function main(): Promise<void> {
   const gameHost = shell.mount();
   createGame(gameHost, controller, bus, manifestResult.manifest, resolveAsset, {
     onInteract: (target) => shell.handleInteraction(target),
+    onAssetLoadError: (url) => diagnostics?.record('asset-load', `Phaser could not load ${url}.`, url),
   });
 
   if (testMode) {
-    window.__STORY_GUILD_TEST_API__ = createTestApi(controller, repository, () => {
+    window.__STORY_GUILD_TEST_API__ = createTestApi(controller, repository, diagnostics as RuntimeDiagnostics, () => {
       storage.removeItem(keys.primary);
       storage.removeItem(keys.backup);
     });
-    if (autoRunTests) await new SelfTestRunner(controller, normalSaveSnapshot).run();
+    if (autoRunTests) await new SelfTestRunner(controller, normalSaveSnapshot, diagnostics as RuntimeDiagnostics).run();
   }
 }
 
-void main().catch((error: unknown) => {
+const testMode = new URLSearchParams(window.location.search).get('test') === '1';
+const diagnostics = testMode ? new RuntimeDiagnostics() : undefined;
+
+void main(testMode, diagnostics).catch((error: unknown) => {
+  diagnostics?.record('error', error instanceof Error ? error.message : 'Unknown startup error.');
   document.body.dataset.testStatus = 'fail';
   const root = document.querySelector<HTMLElement>('#app');
   if (root) root.innerHTML = `<section class="fatal-error"><h1>The Guild could not open.</h1><p>${error instanceof Error ? error.message : 'Unknown startup error'}</p></section>`;

@@ -47,7 +47,11 @@ function isAttempt(value: unknown): value is LessonAttempt {
 export function validateSaveData(value: unknown): value is SaveDataV1 {
   if (!isObject(value) || value.schemaVersion !== 1) return false;
   if (!isObject(value.profile) || typeof value.profile.profileId !== 'string' || typeof value.profile.studentName !== 'string') return false;
-  if (!isObject(value.settings) || typeof value.settings.soundEnabled !== 'boolean') return false;
+  if (!isObject(value.settings)
+    || !['normal', 'large'].includes(String(value.settings.textScale))
+    || typeof value.settings.reducedMotion !== 'boolean'
+    || typeof value.settings.soundEnabled !== 'boolean'
+    || !['left', 'right'].includes(String(value.settings.inputHand))) return false;
   if (!isObject(value.progress) || !Array.isArray(value.progress.recoveredPages) || !isObject(value.progress.selectedAttemptByLesson)) return false;
   if (!isObject(value.attempts) || !Object.values(value.attempts).every(isAttempt)) return false;
   if (value.activeAttemptId !== undefined && typeof value.activeAttemptId !== 'string') return false;

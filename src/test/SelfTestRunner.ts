@@ -1,5 +1,6 @@
 import type { AppController } from '../app/AppController';
 import { APP_CONFIG } from '../config';
+import type { RuntimeDiagnostics } from '../core/RuntimeDiagnostics';
 import { createQuestOnePrintModel } from '../services/ExportService';
 
 export interface BrowserTestResult { name: string; passed: boolean; detail?: string }
@@ -24,6 +25,7 @@ export class SelfTestRunner {
   constructor(
     private readonly controller: AppController,
     private readonly normalSaveSnapshot: { primary: string | null; backup: string | null },
+    private readonly diagnostics: RuntimeDiagnostics,
   ) {}
 
   async run(): Promise<void> {
@@ -59,6 +61,7 @@ export class SelfTestRunner {
       const raw = localStorage.getItem(APP_CONFIG.storageKeys.test.primary);
       return raw?.includes('copyStatus') === true && raw.includes('completedAt');
     });
+    await this.check('No uncaught browser or asset-load errors', () => this.diagnostics.snapshot().entries.length === 0);
     await this.check('Normal save keys remain untouched', () => {
       return localStorage.getItem(APP_CONFIG.storageKeys.normal.primary) === this.normalSaveSnapshot.primary
         && localStorage.getItem(APP_CONFIG.storageKeys.normal.backup) === this.normalSaveSnapshot.backup;

@@ -13,6 +13,7 @@ export type InteractionTarget =
 
 export interface GameCallbacks {
   onInteract(target: InteractionTarget): void;
+  onAssetLoadError?(url: string): void;
 }
 
 const questTabletPositions = [
@@ -39,6 +40,10 @@ class GuildScene extends Phaser.Scene {
   }
 
   preload(): void {
+    this.load.on(Phaser.Loader.Events.FILE_LOAD_ERROR, (file: Phaser.Loader.File) => {
+      const url = typeof file.src === 'string' ? file.src : typeof file.url === 'string' ? file.url : 'Unknown Phaser asset';
+      this.callbacks.onAssetLoadError?.(url);
+    });
     (Object.keys(this.manifest.characters) as CharacterId[]).forEach((id) => {
       const character = this.manifest.characters[id];
       this.load.spritesheet(`character-${id}`, this.resolveAsset(character.spriteUrl), {

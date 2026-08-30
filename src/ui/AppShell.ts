@@ -43,10 +43,10 @@ export class AppShell {
             <div id="game-host" class="game-host"></div>
             <div class="touch-controls" data-testid="touch-controls">
               <div class="dpad" aria-label="Movement controls">
-                <button data-direction="up" aria-label="Move up">▲</button>
-                <button data-direction="left" aria-label="Move left">◀</button>
-                <button data-direction="down" aria-label="Move down">▼</button>
-                <button data-direction="right" aria-label="Move right">▶</button>
+                <button data-direction="up" data-testid="move-up" aria-label="Move up">▲</button>
+                <button data-direction="left" data-testid="move-left" aria-label="Move left">◀</button>
+                <button data-direction="down" data-testid="move-down" aria-label="Move down">▼</button>
+                <button data-direction="right" data-testid="move-right" aria-label="Move right">▶</button>
               </div>
               <button class="action-button" data-testid="action-button">ACTION</button>
             </div>
@@ -76,6 +76,7 @@ export class AppShell {
   }
 
   private onStateCommitted(state: Readonly<AppState>): void {
+    this.applyAccessibility(state);
     const focused = document.activeElement;
     const editing = focused instanceof HTMLInputElement || focused instanceof HTMLTextAreaElement;
     if (editing && state.phase === this.lastPhase) {
@@ -88,6 +89,7 @@ export class AppShell {
 
   private render(state: Readonly<AppState>): void {
     this.lastPhase = state.phase;
+    this.applyAccessibility(state);
     this.updateHeader(state);
     document.body.classList.toggle('writing-active', ['reflection', 'writing', 'review', 'copy', 'parent', 'printPreview'].includes(state.phase));
     if (this.overlay) this.renderOverlay(state);
@@ -102,6 +104,11 @@ export class AppShell {
       sound.textContent = this.audio.isEnabled() ? 'Sound On' : 'Sound Off';
       sound.setAttribute('aria-label', this.audio.isEnabled() ? 'Mute sound' : 'Enable sound');
     }
+  }
+
+  private applyAccessibility(state: Readonly<AppState>): void {
+    document.documentElement.classList.toggle('text-large', state.save?.settings.textScale === 'large');
+    document.body.classList.toggle('reduced-motion', state.save?.settings.reducedMotion === true);
   }
 
   private renderPhase(state: Readonly<AppState>): void {
@@ -152,7 +159,7 @@ export class AppShell {
       <p class="seed-line">Seed ${attempt?.seed.numericSeed ?? ''}</p>
       <div class="button-row">
         <button class="primary" data-action="resume" data-testid="resume-quest">Resume Quest</button>
-        <button data-action="hub">Return to Guild Hall</button>
+        <button data-action="hub" data-testid="resume-return-hub">Return to Guild Hall</button>
       </div>`, 'Saved safely');
     this.bindClick('resume', () => this.controller.resumeQuest());
     this.bindClick('hub', () => this.controller.goToHub());
@@ -174,7 +181,7 @@ export class AppShell {
       <p>Six tablets are mixed up. Find which ones are stories.</p>
       <p>A story has an event and a change.</p>
       <div class="seed-card"><strong>Your adventure seed</strong><span>${escapeHtml(attempt?.seed.character ?? '')}</span><span>${escapeHtml(attempt?.seed.trouble ?? '')}</span></div>
-      <div class="button-row"><button class="primary" data-action="begin" data-testid="begin-quest">Enter the Archive</button><button data-action="hub">Not yet</button></div>`, `${this.manifest.characters.rowan.displayName}, Quest Keeper`);
+      <div class="button-row"><button class="primary" data-action="begin" data-testid="begin-quest">Enter the Archive</button><button data-action="hub" data-testid="briefing-return-hub">Not yet</button></div>`, `${this.manifest.characters.rowan.displayName}, Quest Keeper`);
     this.bindClick('begin', () => this.controller.beginQuest());
     this.bindClick('hub', () => this.controller.goToHub());
   }
@@ -186,7 +193,7 @@ export class AppShell {
       <p>Walk beside a glowing tablet. Press ACTION to read it.</p>
       <div class="large-progress"><span style="width:${(solved / 6) * 100}%"></span></div>
       <p>${solved} of 6 tablets sorted</p>
-      <button data-action="hub">Pause and return to the Guild</button>`, 'No timer. No lost progress.');
+      <button data-action="hub" data-testid="pause-quest">Pause and return to the Guild</button>`, 'No timer. No lost progress.');
     this.bindClick('hub', () => this.controller.goToHub());
   }
 
@@ -232,9 +239,9 @@ export class AppShell {
     this.panel.innerHTML = this.card(prompt.prompt, `
       ${tablet ? `<p class="memory-line">Remember: ${escapeHtml(tablet.text)}</p>` : ''}
       <label class="sr-only" for="reflection-input">${escapeHtml(prompt.prompt)}</label>
-      <textarea id="reflection-input" data-input-key="${prompt.key}" rows="3" autocapitalize="sentences" spellcheck="true">${escapeHtml(attempt.inputs[prompt.key] ?? '')}</textarea>
+      <textarea id="reflection-input" data-testid="reflection-input" data-input-key="${prompt.key}" rows="3" autocapitalize="sentences" spellcheck="true">${escapeHtml(attempt.inputs[prompt.key] ?? '')}</textarea>
       <div class="step-label">Question ${index + 1} of ${REFLECTION_PROMPTS.length}</div>
-      <button class="primary" data-action="reflection-next">Next</button>`, `${this.manifest.characters.pip.displayName}, Mapkeeper`);
+      <button class="primary" data-action="reflection-next" data-testid="reflection-next">Next</button>`, `${this.manifest.characters.pip.displayName}, Mapkeeper`);
     this.bindAutosaveInput(prompt.key);
     this.bindClick('reflection-next', async () => {
       await this.flushVisibleInput(prompt.key);
@@ -252,9 +259,9 @@ export class AppShell {
       this.panel.innerHTML = this.card(prompt.prompt, `
         <p class="story-frame">Somebody wanted something, but a problem happened, so the character acted, and then something changed.</p>
         <label for="writing-input">${escapeHtml(prompt.label)}</label>
-        <input id="writing-input" data-input-key="${prompt.key}" value="${escapeHtml(attempt.inputs[prompt.key] ?? '')}" autocapitalize="sentences" spellcheck="true" />
+        <input id="writing-input" data-testid="writing-input" data-input-key="${prompt.key}" value="${escapeHtml(attempt.inputs[prompt.key] ?? '')}" autocapitalize="sentences" spellcheck="true" />
         <div class="step-label">Story part ${index + 1} of 5</div>
-        <button class="primary" data-action="writing-next">Save and continue</button>`, 'Plan your tiny story');
+        <button class="primary" data-action="writing-next" data-testid="writing-next">Save and continue</button>`, 'Plan your tiny story');
       this.bindAutosaveInput(prompt.key);
       this.bindClick('writing-next', async () => {
         await this.flushVisibleInput(prompt.key);
@@ -266,7 +273,7 @@ export class AppShell {
     this.panel.innerHTML = this.card('Write your own 6–12-word story', `
       <p>Use your plan. The Guild will not write the sentence for you.</p>
       <label class="sr-only" for="writing-input">Your 6 to 12 word story</label>
-      <textarea id="writing-input" data-input-key="finalStory" rows="4" autocapitalize="sentences" spellcheck="true">${escapeHtml(story)}</textarea>
+      <textarea id="writing-input" data-testid="writing-input" data-input-key="finalStory" rows="4" autocapitalize="sentences" spellcheck="true">${escapeHtml(story)}</textarea>
       <div class="word-meter"><strong data-testid="live-word-count">${countWords(story)}</strong> / 6–12 words</div>
       <button class="primary" data-action="writing-next" data-testid="review-story">Review my story</button>`, 'Your words');
     this.bindAutosaveInput('finalStory', true);
@@ -284,7 +291,7 @@ export class AppShell {
       <ul class="plan-review">${plan}</ul>
       <blockquote class="story-review" data-testid="review-story-text">${escapeHtml(artifact.storyText)}</blockquote>
       <p>${artifact.wordCount} story words</p>
-      <div class="button-row"><button data-action="edit">Edit</button><button class="primary" data-action="copy" data-testid="open-copy">Copy into my journal</button></div>`, 'Nothing was rewritten');
+      <div class="button-row"><button data-action="edit" data-testid="edit-story">Edit</button><button class="primary" data-action="copy" data-testid="open-copy">Copy into my journal</button></div>`, 'Nothing was rewritten');
     this.bindClick('edit', () => this.controller.editFromReview());
     this.bindClick('copy', () => this.controller.openCopy());
   }
@@ -296,7 +303,7 @@ export class AppShell {
       <p>Copy this sentence onto paper in your own handwriting.</p>
       <div class="copy-card" data-testid="copy-text">${escapeHtml(artifact.storyText)}</div>
       <p class="step-label">Sentence 1 of 1 · ${artifact.wordCount} words</p>
-      <div class="button-row"><button data-action="review">Back to review</button><button class="primary" data-action="copied" data-testid="complete-copy">I Copied This</button></div>`, 'Game motion is paused');
+      <div class="button-row"><button data-action="review" data-testid="copy-return-review">Back to review</button><button class="primary" data-action="copied" data-testid="complete-copy">I Copied This</button></div>`, 'Game motion is paused');
     this.bindClick('review', () => this.controller.returnToReview());
     this.bindClick('copied', () => this.controller.completeCopy());
   }
@@ -316,18 +323,30 @@ export class AppShell {
     const attempts = Object.values(save.attempts).sort((a, b) => a.attemptNumber - b.attemptNumber);
     const rows = attempts.length === 0 ? '<p>No attempts yet.</p>' : attempts.map((attempt) => `
       <div class="attempt-row"><div><strong>Quest 1 · Attempt ${attempt.attemptNumber}</strong><span>${attempt.completedAt ? 'Complete' : `Saved in ${attempt.phase}`}</span></div>
-      ${attempt.artifact ? `<button data-reopen="${escapeHtml(attempt.attemptId)}">Copy page</button>` : ''}</div>`).join('');
+      ${attempt.artifact ? `<button data-reopen="${escapeHtml(attempt.attemptId)}" data-testid="reopen-copy">Copy page</button>` : ''}</div>`).join('');
     this.panel.innerHTML = this.card('Parent Area', `
       ${state.configNotice ? `<p class="notice">${escapeHtml(state.configNotice)}</p>` : ''}
       ${state.recoveryNotice ? `<p class="notice">${escapeHtml(state.recoveryNotice)}</p>` : ''}
-      <label for="parent-name">Student display name</label><div class="inline-form"><input id="parent-name" value="${escapeHtml(save.profile.studentName)}" /><button data-action="save-name">Save</button></div>
+      <label for="parent-name">Student display name</label><div class="inline-form"><input id="parent-name" data-testid="parent-name" value="${escapeHtml(save.profile.studentName)}" /><button data-action="save-name" data-testid="save-parent-name">Save</button></div>
+      <fieldset class="settings-fieldset"><legend>Reading and motion</legend>
+        <label class="setting-toggle"><input type="checkbox" data-testid="large-text-toggle" ${save.settings.textScale === 'large' ? 'checked' : ''} /><span><strong>Larger text</strong><small>Increase interface text by 20%.</small></span></label>
+        <label class="setting-toggle"><input type="checkbox" data-testid="reduced-motion-toggle" ${save.settings.reducedMotion ? 'checked' : ''} /><span><strong>Reduce motion</strong><small>Turn off interface animation and smooth scrolling.</small></span></label>
+      </fieldset>
       <h3>Quest attempts</h3>${rows}
-      <div class="button-stack"><button class="primary" data-action="print" ${attempts.some((attempt) => attempt.artifact) ? '' : 'disabled'}>Open Print Preview</button><button data-action="close-parent">Return to Guild Hall</button></div>
-      <details><summary>Reset progress</summary><p>Type RESET. Damaged or cleared progress cannot be restored through the game.</p><div class="inline-form"><input id="reset-confirm" autocomplete="off" /><button class="danger" data-action="reset">Reset</button></div></details>`, 'Adults and helpers');
+      <div class="button-stack"><button class="primary" data-action="print" data-testid="open-print-preview" ${attempts.some((attempt) => attempt.artifact) ? '' : 'disabled'}>Open Print Preview</button><button data-action="close-parent" data-testid="close-parent">Return to Guild Hall</button></div>
+      <details><summary data-testid="reset-progress-summary">Reset progress</summary><p>Type RESET. Damaged or cleared progress cannot be restored through the game.</p><div class="inline-form"><input id="reset-confirm" data-testid="reset-confirm" autocomplete="off" /><button class="danger" data-action="reset" data-testid="reset-progress">Reset</button></div></details>`, 'Adults and helpers');
     this.bindClick('save-name', () => this.controller.updateStudentName(this.panel.querySelector<HTMLInputElement>('#parent-name')?.value ?? ''));
     this.bindClick('print', () => this.controller.openPrintPreview());
     this.bindClick('close-parent', () => this.controller.closeParent());
     this.bindClick('reset', () => this.controller.resetProgress(this.panel.querySelector<HTMLInputElement>('#reset-confirm')?.value ?? ''));
+    this.panel.querySelector<HTMLInputElement>('[data-testid="large-text-toggle"]')?.addEventListener('change', (event) => {
+      const checked = (event.currentTarget as HTMLInputElement).checked;
+      void this.run(() => this.controller.setTextScale(checked ? 'large' : 'normal'));
+    });
+    this.panel.querySelector<HTMLInputElement>('[data-testid="reduced-motion-toggle"]')?.addEventListener('change', (event) => {
+      const checked = (event.currentTarget as HTMLInputElement).checked;
+      void this.run(() => this.controller.setReducedMotion(checked));
+    });
     this.panel.querySelectorAll<HTMLButtonElement>('[data-reopen]').forEach((button) => button.addEventListener('click', () => void this.run(() => this.controller.reopenCopy(button.dataset.reopen ?? ''))));
   }
 
@@ -337,12 +356,12 @@ export class AppShell {
     const selectedId = save.progress.selectedAttemptByLesson.L01;
     const selected = selectedId ? save.attempts[selectedId] : Object.values(save.attempts).find((attempt) => attempt.artifact);
     if (!selected?.artifact) {
-      this.panel.innerHTML = this.card('Nothing to print yet', '<button data-action="close-print">Back</button>');
+      this.panel.innerHTML = this.card('Nothing to print yet', '<button data-action="close-print" data-testid="close-print-preview">Back</button>');
       this.bindClick('close-print', () => this.controller.closePrintPreview());
       return;
     }
     const html = renderPrintHtml(createQuestOnePrintModel(save, selected));
-    this.panel.innerHTML = `${html}<div class="print-actions"><button data-action="close-print">Back</button><button class="primary" data-action="print-now" data-testid="print-now">Print</button></div>`;
+    this.panel.innerHTML = `${html}<div class="print-actions"><button data-action="close-print" data-testid="close-print-preview">Back</button><button class="primary" data-action="print-now" data-testid="print-now">Print</button></div>`;
     this.bindClick('close-print', () => this.controller.closePrintPreview());
     this.panel.querySelector<HTMLButtonElement>('[data-action="print-now"]')?.addEventListener('click', () => window.print());
   }
@@ -351,7 +370,7 @@ export class AppShell {
     this.panel.innerHTML = this.card('Saved work needs attention', `
       <p>The primary save and its backup could not be read. Nothing was silently discarded.</p>
       <p>Type RESET to preserve both raw values under diagnostic keys and start a new profile.</p>
-      <div class="inline-form"><input id="storage-reset" autocomplete="off" /><button class="danger" data-action="storage-reset">Preserve and reset</button></div>`);
+      <div class="inline-form"><input id="storage-reset" data-testid="storage-reset-confirm" autocomplete="off" /><button class="danger" data-action="storage-reset" data-testid="storage-reset">Preserve and reset</button></div>`);
     this.bindClick('storage-reset', () => this.controller.confirmStorageReset(this.panel.querySelector<HTMLInputElement>('#storage-reset')?.value ?? ''));
   }
 
@@ -361,8 +380,8 @@ export class AppShell {
       const active = state.save?.activeAttemptId ? state.save.attempts[state.save.activeAttemptId] : undefined;
       this.panel.innerHTML = this.card('Guild Quest Board', `
         <div class="quest-card"><span>Quest 1</span><h3>The Gate of Change</h3><p>Tell whether words form a story.</p><strong>${completed ? 'Recovered · Replay available' : 'Unlocked'}</strong></div>
-        ${active && active.phase !== 'complete' ? '<button class="primary" data-action="resume-board">Resume saved attempt</button>' : `<button class="primary" data-action="start-board">${completed ? 'Replay with a new seed' : 'Start Quest 1'}</button>`}
-        <button data-action="close-overlay">Close board</button>`, 'Twelve pages are missing');
+        ${active && active.phase !== 'complete' ? '<button class="primary" data-action="resume-board" data-testid="resume-board">Resume saved attempt</button>' : `<button class="primary" data-action="start-board" data-testid="start-board">${completed ? 'Replay with a new seed' : 'Start Quest 1'}</button>`}
+        <button data-action="close-overlay" data-testid="close-quest-board">Close board</button>`, 'Twelve pages are missing');
       this.bindClick('start-board', () => { this.overlay = null; return this.controller.startQuest(); });
       this.bindClick('resume-board', () => { this.overlay = null; return this.controller.resumeQuest(); });
       this.bindOverlayClose();
@@ -372,7 +391,7 @@ export class AppShell {
       this.panel.innerHTML = this.card('Parent Alcove', `
         <p>Press and hold for a moment to open adult tools.</p>
         <button class="hold-button" data-testid="parent-hold"><span>Hold to enter</span><i></i></button>
-        <button data-action="close-overlay">Cancel</button>`, 'Accidental-entry guard');
+        <button data-action="close-overlay" data-testid="cancel-parent-hold">Cancel</button>`, 'Accidental-entry guard');
       const button = this.panel.querySelector<HTMLButtonElement>('[data-testid="parent-hold"]');
       let timer: number | undefined;
       const cancel = (): void => { if (timer !== undefined) window.clearTimeout(timer); button?.classList.remove('holding'); };
@@ -388,7 +407,7 @@ export class AppShell {
       this.bindOverlayClose();
       return;
     }
-    this.panel.innerHTML = this.card('Guild Message', `<p>${escapeHtml(this.message)}</p><button data-action="close-overlay">Continue</button>`);
+    this.panel.innerHTML = this.card('Guild Message', `<p>${escapeHtml(this.message)}</p><button data-action="close-overlay" data-testid="close-message">Continue</button>`);
     this.bindOverlayClose();
   }
 
@@ -482,6 +501,8 @@ export class AppShell {
   private keepFocusedInputVisible(): void {
     const focused = document.activeElement;
     if (!(focused instanceof HTMLInputElement || focused instanceof HTMLTextAreaElement)) return;
-    window.setTimeout(() => focused.scrollIntoView({ block: 'center', behavior: 'smooth' }), 50);
+    const reduceMotion = this.controller.getState().save?.settings.reducedMotion === true
+      || window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    window.setTimeout(() => focused.scrollIntoView({ block: 'center', behavior: reduceMotion ? 'auto' : 'smooth' }), 50);
   }
 }
