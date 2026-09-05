@@ -1,6 +1,6 @@
 import './styles/app.css';
 import { AppController } from './app/AppController';
-import { APP_CONFIG } from './config';
+import { APP_CONFIG, DEFAULT_MANIFEST } from './config';
 import { EventBus } from './core/EventBus';
 import { RuntimeDiagnostics } from './core/RuntimeDiagnostics';
 import { createGame } from './game/createGame';
@@ -19,17 +19,20 @@ async function main(testMode: boolean, diagnostics?: RuntimeDiagnostics): Promis
   const normalSaveSnapshot = {
     primary: storage.getItem(APP_CONFIG.storageKeys.normal.primary),
     backup: storage.getItem(APP_CONFIG.storageKeys.normal.backup),
+    legacyPrimary: storage.getItem(APP_CONFIG.storageKeys.legacy.primary),
+    legacyBackup: storage.getItem(APP_CONFIG.storageKeys.legacy.backup),
   };
   const keys = testMode ? APP_CONFIG.storageKeys.test : APP_CONFIG.storageKeys.normal;
   if (testMode && autoRunTests) {
     storage.removeItem(keys.primary);
     storage.removeItem(keys.backup);
+    storage.removeItem(`${keys.primary}.legacy-imported`);
   }
   const appBase = new URL('.', window.location.href);
   const basePath = appBase.pathname.endsWith('/') ? appBase.pathname : `${appBase.pathname}/`;
   const resolveAsset = (path: string): string => new URL(path, appBase).toString();
   const manifestResult = await new ConfigRepository().load(basePath, APP_CONFIG.manifestPath);
-  const repository = new SaveRepository(storage, keys);
+  const repository = new SaveRepository(storage, keys, testMode ? undefined : APP_CONFIG.storageKeys.legacy);
   const bus = new EventBus();
   const controller = new AppController({
     repository,
@@ -38,11 +41,11 @@ async function main(testMode: boolean, diagnostics?: RuntimeDiagnostics): Promis
   });
   controller.boot();
   const initialSound = controller.getState().save?.settings.soundEnabled ?? false;
-  const audio = new AudioService(manifestResult.manifest, new BrowserAudioAdapter(resolveAsset), initialSound);
-  const shell = new AppShell(root, controller, bus, manifestResult.manifest, audio);
+  const manifest = { ...manifestResult.manifest, storybook: manifestResult.manifest.storybook ?? DEFAULT_MANIFEST.storybook! };
+  const audio = new AudioService(manifest, new BrowserAudioAdapter(resolveAsset), initialSound);
+  const shell = new AppShell(root, controller, bus, manifest, audio);
   const gameHost = shell.mount();
-  createGame(gameHost, controller, bus, manifestResult.manifest, resolveAsset, {
-    onInteract: (target) => shell.handleInteraction(target),
+  createGame(gameHost, controller, bus, manifest, resolveAsset, {
     onAssetLoadError: (url) => diagnostics?.record('asset-load', `Phaser could not load ${url}.`, url),
   });
 

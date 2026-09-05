@@ -2,252 +2,128 @@ import Phaser from 'phaser';
 import { APP_CONFIG } from '../config';
 import type { AppController } from '../app/AppController';
 import type { EventBus } from '../core/EventBus';
-import type { AppState, CharacterId, Direction, GameManifestV1 } from '../domain/models';
+import type { AppState, GameManifestV1 } from '../domain/models';
+import { sceneImage } from '../domain/storybook';
 
-export type InteractionTarget =
-  | { kind: 'questBoard' }
-  | { kind: 'parentAlcove' }
-  | { kind: 'npc'; characterId: CharacterId }
-  | { kind: 'tablet'; tabletId: string }
-  | { kind: 'hall' };
+export interface GameCallbacks { onAssetLoadError?(url: string): void }
 
-export interface GameCallbacks {
-  onInteract(target: InteractionTarget): void;
-  onAssetLoadError?(url: string): void;
-}
+class StorybookScene extends Phaser.Scene {
+  private backdrop?: Phaser.GameObjects.Image;
+  private previous?: Phaser.GameObjects.Image;
+  private page?: Phaser.GameObjects.Image;
+  private magic?: Phaser.GameObjects.Graphics;
+  private picture = '';
+  private revision = '';
+  private unsubscribe?: () => void;
+  private motionQuery?: MediaQueryList;
+  private readonly motionChanged = (): void => this.renderState(this.controller.getState());
 
-const questTabletPositions = [
-  { x: 4, y: 3 }, { x: 10, y: 3 }, { x: 16, y: 3 },
-  { x: 4, y: 10 }, { x: 10, y: 10 }, { x: 16, y: 10 },
-] as const;
-
-class GuildScene extends Phaser.Scene {
-  private player: Phaser.GameObjects.Sprite | undefined;
-  private worldObjects: Phaser.GameObjects.GameObject[] = [];
-  private currentState!: Readonly<AppState>;
-  private hubPosition = { x: 10, y: 11 };
-  private moving = false;
-
-  constructor(
-    private readonly controller: AppController,
-    private readonly bus: EventBus,
-    private readonly manifest: Readonly<GameManifestV1>,
-    private readonly resolveAsset: (path: string) => string,
-    private readonly callbacks: GameCallbacks,
-  ) {
-    super({ key: 'GuildScene' });
-    this.currentState = controller.getState();
-  }
+  constructor(private readonly controller: AppController, private readonly bus: EventBus,
+    private readonly manifest: Readonly<GameManifestV1>, private readonly resolveAsset: (path: string) => string,
+    private readonly callbacks: GameCallbacks) { super('StorybookScene'); }
 
   preload(): void {
     this.load.on(Phaser.Loader.Events.FILE_LOAD_ERROR, (file: Phaser.Loader.File) => {
-      const url = typeof file.src === 'string' ? file.src : typeof file.url === 'string' ? file.url : 'Unknown Phaser asset';
-      this.callbacks.onAssetLoadError?.(url);
+      this.callbacks.onAssetLoadError?.(typeof file.src === 'string' ? file.src : String(file.url));
     });
-    (Object.keys(this.manifest.characters) as CharacterId[]).forEach((id) => {
-      const character = this.manifest.characters[id];
-      this.load.spritesheet(`character-${id}`, this.resolveAsset(character.spriteUrl), {
-        frameWidth: character.frameWidth,
-        frameHeight: character.frameHeight,
-      });
-    });
+    for (const [key, path] of Object.entries(this.manifest.storybook?.images ?? {})) this.load.image(key, this.resolveAsset(path));
   }
 
   create(): void {
-    this.cameras.main.setBackgroundColor('#18243c');
-    this.input.keyboard?.on('keydown-UP', () => void this.move('up'));
-    this.input.keyboard?.on('keydown-W', () => void this.move('up'));
-    this.input.keyboard?.on('keydown-DOWN', () => void this.move('down'));
-    this.input.keyboard?.on('keydown-S', () => void this.move('down'));
-    this.input.keyboard?.on('keydown-LEFT', () => void this.move('left'));
-    this.input.keyboard?.on('keydown-A', () => void this.move('left'));
-    this.input.keyboard?.on('keydown-RIGHT', () => void this.move('right'));
-    this.input.keyboard?.on('keydown-D', () => void this.move('right'));
-    this.input.keyboard?.on('keydown-SPACE', () => this.interact());
-    this.input.keyboard?.on('keydown-ENTER', () => this.interact());
-    this.bus.on('REQUEST_MOVE', (direction) => void this.move(direction));
-    this.bus.on('REQUEST_INTERACTION', () => this.interact());
-    this.bus.on('STATE_COMMITTED', (state) => {
-      this.currentState = state;
-      this.renderWorld();
-    });
-    this.renderWorld();
+    document.body.dataset.artReady = String(Object.keys(this.manifest.storybook?.images ?? {}).every((key) => this.textures.exists(key)));
+    this.cameras.main.setBackgroundColor('#e9d3a3');
+    this.unsubscribe = this.bus.on('STATE_COMMITTED', (state) => this.renderState(state));
+    this.motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    this.motionQuery.addEventListener('change', this.motionChanged);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => { this.unsubscribe?.(); this.motionQuery?.removeEventListener('change', this.motionChanged); });
+    this.renderState(this.controller.getState());
   }
 
-  private clearWorld(): void {
-    this.worldObjects.forEach((object) => object.destroy());
-    this.worldObjects = [];
-    this.player?.destroy();
-    this.player = undefined;
-  }
-
-  private keep<T extends Phaser.GameObjects.GameObject>(object: T): T {
-    this.worldObjects.push(object);
-    return object;
-  }
-
-  private renderWorld(): void {
-    if (!this.add) return;
-    this.clearWorld();
+  private renderState(state: Readonly<AppState>): void {
     const attempt = this.controller.getActiveAttempt();
-    const questVisible = attempt && ['questBriefing', 'explore', 'puzzle', 'reflection', 'writing', 'review', 'copy', 'complete'].includes(this.currentState.phase);
-    if (questVisible) this.renderQuest();
-    else this.renderHub();
-  }
-
-  private drawRoom(floorColor: number, wallColor: number): void {
-    const graphics = this.keep(this.add.graphics());
-    graphics.fillStyle(floorColor).fillRect(16, 16, 288, 208);
-    graphics.fillStyle(wallColor)
-      .fillRect(16, 16, 288, 16)
-      .fillRect(16, 208, 288, 16)
-      .fillRect(16, 16, 16, 208)
-      .fillRect(288, 16, 16, 208);
-    for (let x = 32; x < 288; x += 32) graphics.fillRect(x, 18, 16, 4);
-  }
-
-  private renderHub(): void {
-    this.drawRoom(0x314f4f, 0x9a6b45);
-    this.keep(this.add.text(160, 24, 'THE STORY GUILD', { fontFamily: 'monospace', fontSize: '12px', color: '#fff3c4' }).setOrigin(0.5));
-    this.drawObject(5, 4, 0xe9c46a, 'QUEST\nBOARD');
-    this.drawObject(15, 11, 0x8ecae6, 'PARENT');
-    this.drawObject(4, 11, 0xf4a261, 'HALL OF\nPAGES');
-    this.addCharacter('rowan', 10, 7);
-    const recovered = this.currentState.save?.progress.recoveredPages.length ?? 0;
-    this.keep(this.add.text(160, 198, `Recovered pages: ${recovered}/12`, { fontFamily: 'monospace', fontSize: '9px', color: '#ffffff' }).setOrigin(0.5));
-    this.addPlayer(this.hubPosition.x, this.hubPosition.y);
-    this.renderInteractionMarker();
-  }
-
-  private renderQuest(): void {
-    this.drawRoom(0x3d405b, 0x6d597a);
-    this.keep(this.add.text(160, 24, 'ARCHIVE GATE', { fontFamily: 'monospace', fontSize: '12px', color: '#f6e8c8' }).setOrigin(0.5));
-    const attempt = this.controller.getActiveAttempt();
-    if (!attempt) return;
-    attempt.questState.tabletIds.forEach((id, index) => {
-      const position = questTabletPositions[index];
-      if (!position) return;
-      const solved = id in attempt.questState.classifications;
-      this.drawObject(position.x, position.y, solved ? 0x84a98c : 0xe0b1cb, solved ? '✓' : '?');
-    });
-    this.addCharacter('pip', 10, 7);
-    this.keep(this.add.text(160, 198, `${Object.keys(attempt.questState.classifications).length}/6 tablets sorted`, { fontFamily: 'monospace', fontSize: '9px', color: '#ffffff' }).setOrigin(0.5));
-    this.addPlayer(attempt.questState.playerX, attempt.questState.playerY);
-    this.renderInteractionMarker();
-  }
-
-  private drawObject(tileX: number, tileY: number, color: number, label: string): void {
-    const graphics = this.keep(this.add.graphics());
-    graphics.fillStyle(0x111827, 0.35).fillRect(tileX * 16 - 1, tileY * 16 + 2, 18, 16);
-    graphics.fillStyle(color).fillRect(tileX * 16 + 2, tileY * 16, 12, 14);
-    this.keep(this.add.text(tileX * 16 + 8, tileY * 16 + 7, label, {
-      align: 'center', fontFamily: 'monospace', fontSize: label.length > 2 ? '5px' : '10px', color: '#17202a',
-    }).setOrigin(0.5));
-  }
-
-  private addCharacter(id: CharacterId, tileX: number, tileY: number): void {
-    const visual = this.manifest.characters[id];
-    const sprite = this.keep(this.add.sprite(tileX * 16 + 8, tileY * 16 + 8, `character-${id}`, visual.animations.idleDown[0] ?? 0));
-    if (visual.tint) sprite.setTint(Number.parseInt(visual.tint.slice(1), 16));
-    sprite.setScale(visual.scale);
-    this.keep(this.add.text(tileX * 16 + 8, tileY * 16 - 4, visual.displayName, { fontFamily: 'monospace', fontSize: '6px', color: '#ffffff' }).setOrigin(0.5));
-  }
-
-  private addPlayer(tileX: number, tileY: number): void {
-    const visual = this.manifest.characters.player;
-    const direction = (this.controller.getActiveAttempt()?.inputs.lastDirection ?? 'down') as Direction;
-    const animationKey = `idle${direction[0]?.toUpperCase()}${direction.slice(1)}` as keyof typeof visual.animations;
-    this.player = this.add.sprite(tileX * 16 + 8, tileY * 16 + 8, 'character-player', visual.animations[animationKey][0] ?? 0);
-    if (visual.tint) this.player.setTint(Number.parseInt(visual.tint.slice(1), 16));
-    this.player.setScale(visual.scale);
-  }
-
-  private position(): { x: number; y: number } {
-    const attempt = this.controller.getActiveAttempt();
-    const questVisible = attempt && this.currentState.phase !== 'hub' && this.currentState.phase !== 'parent' && this.currentState.phase !== 'printPreview';
-    return questVisible ? { x: attempt.questState.playerX, y: attempt.questState.playerY } : this.hubPosition;
-  }
-
-  private canMove(): boolean {
-    return this.currentState.phase === 'hub' || this.currentState.phase === 'explore';
-  }
-
-  private async move(direction: Direction): Promise<void> {
-    if (!this.canMove() || this.moving) return;
-    const delta = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] }[direction] as [number, number];
-    const current = this.position();
-    const next = { x: Math.max(2, Math.min(17, current.x + delta[0])), y: Math.max(2, Math.min(12, current.y + delta[1])) };
-    this.moving = true;
-    try {
-      if (this.currentState.phase === 'explore') await this.controller.updatePlayerPosition(next.x, next.y, direction);
-      else {
-        this.hubPosition = next;
-        this.renderWorld();
-      }
-    } finally {
-      this.moving = false;
+    const inAdventure = attempt?.experience && ['questBriefing', 'explore', 'puzzle'].includes(state.phase);
+    const key = inAdventure ? sceneImage(attempt) : 'library';
+    const reduced = state.save?.settings.reducedMotion === true || this.motionQuery?.matches === true;
+    const oldPicture = this.picture;
+    const progress = attempt?.questState.storybook;
+    const revision = `${attempt?.attemptId ?? ''}:${progress?.sceneIndex}:${progress?.activity}`;
+    if (reduced || !inAdventure || revision !== this.revision) this.finishReaction();
+    if (key !== this.picture && this.textures.exists(key)) {
+      this.picture = key;
+      if (!this.backdrop) this.backdrop = this.add.image(512, 384, key);
+      else this.backdrop.setTexture(key);
+      this.backdrop.setDisplaySize(1024, 768);
+    }
+    if (revision === this.revision) return;
+    this.revision = revision;
+    // Play only a freshly tapped action, never a resumed save or a hint/answer.
+    if (!reduced && inAdventure && progress?.activity === 'compare' && oldPicture.endsWith('-before') && oldPicture !== key) {
+      this.playReaction(oldPicture, progress.sceneIndex, progress.shelfChoice === 'handle');
     }
   }
 
-  private nearbyTarget(): InteractionTarget | null {
-    const position = this.position();
-    const near = (x: number, y: number): boolean => Math.abs(position.x - x) + Math.abs(position.y - y) <= 1;
-    if (this.currentState.phase === 'hub') {
-      if (near(5, 4)) return { kind: 'questBoard' };
-      if (near(15, 11)) return { kind: 'parentAlcove' };
-      if (near(4, 11)) return { kind: 'hall' };
-      if (near(10, 7)) return { kind: 'npc', characterId: 'rowan' };
-      return null;
+  private finishReaction(): void {
+    this.tweens.killAll();
+    this.previous?.setVisible(false);
+    this.page?.setVisible(false);
+    this.magic?.clear();
+    document.body.dataset.sceneAnimation = 'idle';
+  }
+
+  private playReaction(before: string, index: number, handle: boolean): void {
+    if (!this.previous) this.previous = this.add.image(512, 384, before).setDepth(1);
+    this.previous.setTexture(before).setDisplaySize(1024, 768).setAlpha(1).setVisible(true);
+    if (!this.magic) this.magic = this.add.graphics().setDepth(3);
+    const animation = index === 0 ? 'sleepy-sneeze' : index === 1 ? (handle ? 'rising-cart' : 'book-stairs') : 'sailing-page';
+    document.body.dataset.sceneAnimation = animation;
+    const motion = { value: 0 };
+    const duration = index === 0 ? 1000 : 1250;
+    // A short illustrated before/after dissolve leaves the settled picture still
+    // for reading. Prop-specific trails make the direction of change visible.
+    this.tweens.add({ targets: this.previous, alpha: 0, delay: 220, duration: duration - 220, ease: 'Sine.easeInOut' });
+    if (index !== 1 && this.textures.exists('page')) {
+      if (!this.page) this.page = this.add.image(512, 550, 'page').setDepth(2);
+      this.page.setDisplaySize(index === 0 ? 130 : 100, index === 0 ? 130 : 70)
+        .setPosition(index === 0 ? 430 : 545, index === 0 ? 610 : 530).setAngle(-15).setAlpha(0).setVisible(true);
+      this.tweens.add({ targets: this.page, x: index === 0 ? 820 : 830, y: index === 0 ? 138 : 630,
+        angle: index === 0 ? 20 : -4, duration, ease: 'Sine.easeInOut' });
     }
-    if (this.currentState.phase === 'explore') {
-      const attempt = this.controller.getActiveAttempt();
-      if (!attempt) return null;
-      for (let index = 0; index < attempt.questState.tabletIds.length; index += 1) {
-        const tabletId = attempt.questState.tabletIds[index];
-        const tabletPosition = questTabletPositions[index];
-        if (tabletId && tabletPosition && near(tabletPosition.x, tabletPosition.y) && !(tabletId in attempt.questState.classifications)) {
-          return { kind: 'tablet', tabletId };
+    this.tweens.add({ targets: motion, value: 1, duration, ease: 'Sine.easeInOut',
+      onUpdate: () => {
+        const t = motion.value;
+        const glow = Math.sin(t * Math.PI);
+        this.page?.setAlpha(index === 1 ? 0 : glow * .9);
+        const graphics = this.magic!;
+        graphics.clear().lineStyle(3, 0xffeab2, glow * .75);
+        if (index === 0 || index === 2) {
+          // Sneeze curls upward; the fan's three breezes sweep across the desk.
+          for (let i = 0; i < 3; i++) {
+            const x = (index === 0 ? 390 : 300) + t * 370;
+            const y = (index === 0 ? 440 - t * 220 : 435 + t * 80) + i * 22;
+            graphics.beginPath().moveTo(x - 90, y + 14).lineTo(x - 40, y).lineTo(x, y + 7).strokePath();
+          }
+        } else {
+          // A bell pulse and ascending stair sparkles differ from the cart's
+          // vertical lift, reinforcing the branch the child actually chose.
+          if (!handle) graphics.strokeCircle(155, 490, 15 + t * 70);
+          for (let i = 0; i < 7; i++) {
+            const step = Math.max(0, Math.min(1, t - i * .06));
+            const x = handle ? 658 + (i % 2 ? 112 : -112) : 340 + step * 400;
+            const y = 700 - step * 430;
+            graphics.lineStyle(3, 0xffdf83, glow * (1 - i / 9));
+            graphics.lineBetween(x - 6, y, x + 6, y).lineBetween(x, y - 6, x, y + 6);
+          }
         }
-      }
-      if (near(10, 7)) return { kind: 'npc', characterId: 'pip' };
-    }
-    return null;
-  }
-
-  private renderInteractionMarker(): void {
-    if (!this.nearbyTarget()) return;
-    const position = this.position();
-    this.keep(this.add.text(position.x * 16 + 8, position.y * 16 - 7, '!', { fontFamily: 'monospace', fontSize: '11px', color: '#ffe66d' }).setOrigin(0.5));
-  }
-
-  private interact(): void {
-    if (!this.canMove()) return;
-    const target = this.nearbyTarget();
-    if (target) this.callbacks.onInteract(target);
+      }, onComplete: () => this.finishReaction(),
+    });
   }
 }
 
-export function createGame(
-  parent: HTMLElement,
-  controller: AppController,
-  bus: EventBus,
-  manifest: Readonly<GameManifestV1>,
-  resolveAsset: (path: string) => string,
-  callbacks: GameCallbacks,
-): Phaser.Game {
-  const scene = new GuildScene(controller, bus, manifest, resolveAsset, callbacks);
-  return new Phaser.Game({
-    type: Phaser.AUTO,
-    parent,
-    width: APP_CONFIG.internalWidth,
-    height: APP_CONFIG.internalHeight,
-    pixelArt: true,
-    antialias: false,
-    roundPixels: true,
-    backgroundColor: '#18243c',
+export function createGame(parent: HTMLElement, controller: AppController, bus: EventBus,
+  manifest: Readonly<GameManifestV1>, resolveAsset: (path: string) => string, callbacks: GameCallbacks): Phaser.Game {
+  return new Phaser.Game({ type: Phaser.AUTO, parent, width: APP_CONFIG.internalWidth, height: APP_CONFIG.internalHeight,
+    pixelArt: false, antialias: true, backgroundColor: '#e9d3a3',
     scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
-    scene,
-    input: { activePointers: 3 },
-    render: { pixelArt: true, antialias: false, roundPixels: true },
-  });
+    scene: new StorybookScene(controller, bus, manifest, resolveAsset, callbacks),
+    input: { activePointers: 3 }, render: { antialias: true }, });
 }

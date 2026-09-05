@@ -6,6 +6,11 @@
   "properties": {
     "schemaVersion": { "const": 1 },
     "characters": { "type": "object", "required": ["player", "rowan", "pip", "mira", "tink", "sage"] },
+    "storybook": {
+      "type": "object",
+      "required": ["images"],
+      "properties": { "images": { "type": "object", "additionalProperties": { "type": "string", "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_./-]*$" } } }
+    },
     "audio": {
       "type": "object",
       "required": ["enabledByDefault", "masterVolume", "cues"],

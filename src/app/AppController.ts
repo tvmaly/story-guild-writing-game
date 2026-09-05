@@ -2,7 +2,8 @@ import { ActionQueue } from '../core/ActionQueue';
 import { EventBus } from '../core/EventBus';
 import { hashSeed } from '../core/SeededRng';
 import { generateStorySeed, REFLECTION_PROMPTS, selectQuestOneTablets, tabletById, WRITING_PROMPTS } from '../domain/courseCatalog';
-import type { AppPhase, AppState, Direction, LessonArtifact, LessonAttempt, SaveDataV1 } from '../domain/models';
+import type { AppPhase, AppState, Direction, LessonArtifact, LessonAttempt, SaveDataV2, StorySceneId } from '../domain/models';
+import { currentScene, SCENE_IDS } from '../domain/storybook';
 import { countWords } from '../domain/WordCountService';
 import { AppStateMachine } from './AppStateMachine';
 import type { LoadResult } from '../services/SaveRepository';
@@ -18,11 +19,11 @@ export interface ControllerOptions {
   configNotice?: string;
 }
 
-const createDefaultSave = (studentName: string, now: Date, soundEnabled = false): SaveDataV1 => {
+const createDefaultSave = (studentName: string, now: Date, soundEnabled = false): SaveDataV2 => {
   const timestamp = now.toISOString();
   const profileId = `profile-${now.getTime().toString(36)}`;
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     profile: { profileId, studentName, createdAt: timestamp, updatedAt: timestamp },
     settings: { textScale: 'normal', reducedMotion: false, soundEnabled, inputHand: 'right' },
     progress: { highestUnlockedLesson: 'L01', recoveredPages: [], selectedAttemptByLesson: {} },
@@ -30,7 +31,7 @@ const createDefaultSave = (studentName: string, now: Date, soundEnabled = false)
   };
 };
 
-const activeAttempt = (save: SaveDataV1): LessonAttempt => {
+const activeAttempt = (save: SaveDataV2): LessonAttempt => {
   if (!save.activeAttemptId) throw new Error('There is no active quest attempt.');
   const attempt = save.attempts[save.activeAttemptId];
   if (!attempt) throw new Error('The active quest attempt is missing.');
@@ -76,7 +77,7 @@ export class AppController {
     this.emitCommitted();
   }
 
-  private replaceBootState(phase: 'onboarding' | 'storageError', save: SaveDataV1 | null): void {
+  private replaceBootState(phase: 'onboarding' | 'storageError', save: SaveDataV2 | null): void {
     this.state = {
       phase: this.stateMachine.transition('boot', phase),
       save,
@@ -92,11 +93,11 @@ export class AppController {
     this.options.bus.emit('STATE_COMMITTED', this.state);
   }
 
-  private async mutate(mutator: (save: SaveDataV1) => void, nextPhase?: AppPhase): Promise<void> {
+  private async mutate(mutator: (save: SaveDataV2) => void | false, nextPhase?: AppPhase): Promise<void> {
     return this.queue.enqueue(async () => {
       if (!this.state.save) throw new Error('A student profile is required.');
       const candidate = structuredClone(this.state.save);
-      mutator(candidate);
+      if (mutator(candidate) === false) return;
       candidate.profile.updatedAt = this.clock.now().toISOString();
       let phase = this.state.phase;
       if (nextPhase && nextPhase !== phase) phase = this.stateMachine.transition(phase, nextPhase);
@@ -140,8 +141,9 @@ export class AppController {
     this.emitCommitted();
   }
 
-  async startQuest(debugSeed?: number): Promise<void> {
+  async startQuest(debugSeed?: number, experience: 'storybook-v1' | 'legacy' = 'storybook-v1'): Promise<void> {
     await this.mutate((save) => {
+      if (this.state.phase !== 'hub') return false;
       const attemptNumber = Object.values(save.attempts).filter((attempt) => attempt.lessonId === 'L01').length + 1;
       const numericSeed = debugSeed ?? hashSeed(`${save.profile.profileId}:L01:${attemptNumber}`);
       const timestamp = this.clock.now().toISOString();
@@ -169,14 +171,95 @@ export class AppController {
         copyStatus: {},
         startedAt: timestamp,
         updatedAt: timestamp,
+        ...(experience === 'storybook-v1' ? { experience } : {}),
       };
+      if (experience === 'storybook-v1') {
+        attempt.questState.storybook = { sceneIndex: 0, activity: 'interact', completedScenes: [], attempts: {}, help: {}, assisted: [], illustration: 'sleepy-book' };
+        attempt.questState.writingIndex = WRITING_PROMPTS.length;
+      }
       save.attempts[attemptId] = attempt;
       save.activeAttemptId = attemptId;
     }, 'questBriefing');
   }
 
   async beginQuest(): Promise<void> {
-    await this.mutate((save) => { activeAttempt(save).phase = 'explore'; }, 'explore');
+    await this.mutate((save) => { if (activeAttempt(save).phase !== 'questBriefing') return false; activeAttempt(save).phase = 'explore'; }, 'explore');
+  }
+
+  async interactWithScene(action: string): Promise<void> {
+    await this.mutate((save) => {
+      const attempt = activeAttempt(save);
+      const progress = attempt.questState.storybook;
+      if (!progress || attempt.phase !== 'explore' || progress.activity !== 'interact') return false;
+      const scene = currentScene(attempt);
+      if (!scene.actions.some((item) => item.id === action)) throw new Error('Choose one of the things in this scene.');
+      if (action === 'bell' || action === 'handle') progress.shelfChoice = action;
+      progress.activity = 'compare';
+      attempt.phase = 'puzzle';
+      attempt.adventureEvents.push({ id: `event-${attempt.adventureEvents.length + 1}`, sequence: attempt.adventureEvents.length + 1, actorId: 'pip', actionId: action, objectId: scene.id, resultId: 'changed', childChoiceId: action });
+    }, 'puzzle');
+  }
+
+  async answerScene(answer: string, assisted = false): Promise<void> {
+    const expected = this.getActiveAttempt()?.questState.storybook;
+    const expectedStep = expected ? `${expected.sceneIndex}:${expected.activity}` : '';
+    await this.mutate((save) => {
+      const attempt = activeAttempt(save);
+      const progress = attempt.questState.storybook;
+      if (!progress || attempt.phase !== 'puzzle' || !['compare', 'change'].includes(progress.activity)
+        || `${progress.sceneIndex}:${progress.activity}` !== expectedStep) return false;
+      const scene = currentScene(attempt);
+      const key = `${scene.id}:${progress.activity}`;
+      const correct = progress.activity === 'compare' ? answer === 'after' : answer === scene.changedId;
+      if (!correct) {
+        progress.attempts[key] = (progress.attempts[key] ?? 0) + 1;
+        if (progress.attempts[key] >= 2) progress.help[key] = true;
+        return;
+      }
+      if (assisted && !progress.assisted.includes(key)) progress.assisted.push(key);
+      if (progress.activity === 'compare') progress.activity = 'change';
+      else {
+        progress.activity = 'resolved';
+        if (!progress.completedScenes.includes(scene.id)) progress.completedScenes.push(scene.id);
+      }
+    });
+  }
+
+  async requestSceneHelp(): Promise<void> {
+    await this.mutate((save) => {
+      const attempt = activeAttempt(save);
+      const progress = attempt.questState.storybook;
+      if (!progress) return false;
+      progress.help[`${currentScene(attempt).id}:${progress.activity}`] = true;
+    });
+  }
+
+  async continueScene(): Promise<void> {
+    const index = this.getActiveAttempt()?.questState.storybook?.sceneIndex;
+    const phase = index === 2 ? 'writing' : 'explore';
+    await this.mutate((save) => {
+      const attempt = activeAttempt(save);
+      const progress = attempt.questState.storybook;
+      if (!progress || progress.sceneIndex !== index || progress.activity !== 'resolved') return false;
+      if (index !== 2) { progress.sceneIndex += 1; progress.activity = 'interact'; }
+      attempt.phase = phase;
+    }, phase);
+  }
+
+  async chooseIllustration(id: StorySceneId): Promise<void> {
+    if (!SCENE_IDS.includes(id)) throw new Error('Choose a picture from this adventure.');
+    await this.mutate((save) => {
+      const progress = activeAttempt(save).questState.storybook;
+      if (progress) progress.illustration = id;
+    });
+  }
+
+  async celebrateStory(): Promise<void> {
+    await this.mutate((save) => {
+      const attempt = activeAttempt(save);
+      if (attempt.phase !== 'review' || !attempt.artifact) return false;
+      attempt.phase = 'celebration';
+    }, 'celebration');
   }
 
   async resumeQuest(): Promise<void> {
@@ -206,6 +289,7 @@ export class AppController {
   async openTablet(tabletId: string): Promise<void> {
     await this.mutate((save) => {
       const attempt = activeAttempt(save);
+      if (attempt.experience) throw new Error('This adventure uses story scenes.');
       if (!attempt.questState.tabletIds.includes(tabletId)) throw new Error('That tablet is not part of this quest.');
       attempt.questState.activeTabletId = tabletId;
       attempt.phase = 'puzzle';
@@ -280,15 +364,15 @@ export class AppController {
     if (!save) throw new Error('No active writing session.');
     const attempt = activeAttempt(save);
     const index = attempt.questState.writingIndex;
-    if (index < WRITING_PROMPTS.length) {
+    if (!attempt.experience && index < WRITING_PROMPTS.length) {
       const prompt = WRITING_PROMPTS[index];
       if (!prompt || !(attempt.inputs[prompt.key] ?? '').trim()) throw new Error('Write a short answer before moving on.');
       await this.mutate((candidate) => { activeAttempt(candidate).questState.writingIndex += 1; });
       return;
     }
-    const storyText = (attempt.inputs.finalStory ?? '').trim();
+    const storyText = attempt.inputs.finalStory ?? '';
     const wordCount = countWords(storyText);
-    if (wordCount < 6 || wordCount > 12) throw new Error('Your tiny story needs 6 to 12 words.');
+    if (wordCount < 6 || wordCount > 12) throw new Error(wordCount < 6 ? `Add ${6 - wordCount} more ${6 - wordCount === 1 ? 'word' : 'words'} to reach six.` : `Try removing ${wordCount - 12} ${wordCount - 12 === 1 ? 'word' : 'words'} to fit your tiny page.`);
     await this.mutate((candidate) => {
       const changing = activeAttempt(candidate);
       const planning = {
@@ -307,6 +391,7 @@ export class AppController {
   async editFromReview(): Promise<void> {
     await this.mutate((save) => {
       const attempt = activeAttempt(save);
+      if (attempt.completedAt) throw new Error('This story is saved in your journal. Start a new adventure to write another tale.');
       attempt.questState.writingIndex = WRITING_PROMPTS.length;
       attempt.phase = 'writing';
     }, 'writing');
@@ -315,6 +400,8 @@ export class AppController {
   async openCopy(): Promise<void> {
     await this.mutate((save) => {
       const attempt = activeAttempt(save);
+      if (!['review', 'celebration'].includes(attempt.phase)) return false;
+      if (attempt.experience && attempt.phase === 'review') throw new Error('Bring your story to life first.');
       if (!attempt.artifact) throw new Error('Review the story before opening copy mode.');
       attempt.phase = 'copy';
       attempt.copyStatus.startedAt ??= this.clock.now().toISOString();
@@ -328,9 +415,10 @@ export class AppController {
   async completeCopy(): Promise<void> {
     await this.mutate((save) => {
       const attempt = activeAttempt(save);
+      if (attempt.phase !== 'copy') return false;
       const timestamp = this.clock.now().toISOString();
-      attempt.copyStatus.completedAt = timestamp;
-      attempt.completedAt = timestamp;
+      attempt.copyStatus.completedAt ??= timestamp;
+      attempt.completedAt ??= timestamp;
       attempt.phase = 'complete';
       if (!save.progress.recoveredPages.includes('L01')) save.progress.recoveredPages.push('L01');
       save.progress.highestUnlockedLesson = 'L02';
@@ -352,6 +440,14 @@ export class AppController {
     }, 'copy');
   }
 
+  async resumeSavedAttempt(attemptId: string): Promise<void> {
+    await this.mutate((save) => {
+      if (!save.attempts[attemptId]) throw new Error('That saved adventure could not be found.');
+      save.activeAttemptId = attemptId;
+    }, 'hub');
+    await this.resumeQuest();
+  }
+
   async updateStudentName(name: string): Promise<void> {
     const clean = name.trim();
     if (!clean) throw new Error('The writer’s name cannot be blank.');
@@ -362,7 +458,7 @@ export class AppController {
     await this.mutate((save) => { save.settings.soundEnabled = enabled; });
   }
 
-  async setTextScale(scale: SaveDataV1['settings']['textScale']): Promise<void> {
+  async setTextScale(scale: SaveDataV2['settings']['textScale']): Promise<void> {
     await this.mutate((save) => { save.settings.textScale = scale; });
   }
 
@@ -388,10 +484,28 @@ export class AppController {
   }
 
   async fastCompleteQuestOne(storyText = 'Robot sought keys, but rain fell, so kindness opened doors.'): Promise<void> {
+    if (this.state.phase === 'resumePrompt') await this.resumeQuest();
+    if (this.state.phase === 'complete') return;
     if (this.state.phase === 'hub') await this.startQuest(12345);
     if (this.state.phase === 'questBriefing') await this.beginQuest();
     let attempt = this.getActiveAttempt();
     if (!attempt) throw new Error('Fast completion could not create an attempt.');
+    if (attempt.experience) {
+      while (['explore', 'puzzle'].includes(this.state.phase)) {
+        const active = this.getActiveAttempt() as LessonAttempt;
+        const progress = active.questState.storybook;
+        const scene = currentScene(active);
+        if (progress?.activity === 'interact') await this.interactWithScene(scene.actions[0]!.id);
+        else if (progress?.activity === 'compare') await this.answerScene('after');
+        else if (progress?.activity === 'change') await this.answerScene(scene.changedId);
+        else await this.continueScene();
+      }
+      if (this.state.phase === 'writing') { await this.saveInput('finalStory', storyText); await this.advanceWriting(); }
+      if (this.state.phase === 'review') await this.celebrateStory();
+      if (this.state.phase === 'celebration') await this.openCopy();
+      if (this.state.phase === 'copy') await this.completeCopy();
+      return;
+    }
     for (const id of attempt.questState.tabletIds) {
       if (id in attempt.questState.classifications) continue;
       await this.openTablet(id);

@@ -1,12 +1,34 @@
-# The Story Guild — Resume TODO — 2026-08-30
+# The Story Guild — Resume TODO — 2026-09-04
 
-Summary: Resume The Story Guild by preserving the completed Milestones 0–1 vertical slice, deploying and testing it on a physical iPad, then implementing Milestone 2 Lessons 2–8 before starting the capstone. This file lists unfinished work in required order.
+Summary: The approved Quest 1 illustrated redesign is implemented. Complete the physical-iPad and child playtests before extending the course; deploy only when requested. Earlier milestone and deployment tasks remain historical context below.
 
-Status: current; Milestones 0–1 unit/build and local iPad Simulator suites pass, but the deployed Pages, manual Simulator, and physical-iPad gates remain unfinished
+Status: current; approved artwork, logic, UI, browser checks, and two-device Simulator checks complete; hands-on acceptance pending
 
 Keywords: Story Guild TODO; resume session; next steps; Milestone 2; Lessons 2–8; physical iPad Safari test; GitHub Pages deployment; Quest 1; npm run verify; PLAN.md
 
-## Resume Procedure: Establish the Current Baseline
+## Current Priority: Playtest Pip and the Runaway Page
+
+Source of truth: [QUEST_01_REDESIGN.md](QUEST_01_REDESIGN.md) and the 2026-09-04 accepted decision in `PLAN.md` supersede the old Quest 1 implementation instructions below.
+
+- [x] Implement three connected scene activities and the bell/handle branch.
+- [x] Replace movement controls with direct taps and illustrated-scene controls.
+- [x] Add optional planning, exact story review, celebration before copying, and saved stories.
+- [x] Import v1 saves into separate v2 storage while preserving originals and unfinished work.
+- [x] Add local-voice narration and reproducible local sound effects.
+- [x] Generate the first sleepy-book sample and display it in the real interface for owner review.
+- [x] Pass 48 automated tests, strict TypeScript, and the production build.
+- [x] Update the browser self-test and iPad Simulator runner for the new flow.
+- [x] Receive the owner's artwork and interface approval on 2026-09-04.
+- [x] Generate the nine remaining manifest images using the approved sample as the visual reference.
+- [x] Finish scene reactions and visually align each hotspot with its generated prop.
+- [x] Require `/?test=1` to show `ALL PASS` with every image loaded and zero runtime diagnostics.
+- [x] Run the updated Simulator suite with `--local-only`; retain results and screenshots.
+- [ ] Verify local voice playback, keyboard placement, rotation, resume, and printing on the physical iPad.
+- [ ] Observe the child playtest: independent navigation, explaining two changes, original writing, pacing, and enjoyment.
+
+Constraint: Do not treat the older August Simulator report as verification of the redesign. Current evidence is in `QUEST_01_REDESIGN.md`. Do not begin Quest 2 before the child playtest and physical-iPad gate; do not deploy without an explicit request.
+
+## Historical Resume Procedure: Original Milestones 0–1 Baseline
 
 Procedure: Read `TODO.md`, `PLAN.md`, `MILESTONE_01_REPORT.md`, and `tiny_tales_third_grade_homeschool.md` before changing code. Treat `NOTES.md` only as historical engineering guidance from another game.
 
@@ -24,7 +46,7 @@ Expected: `npm run verify` passes 9 Vitest files and 28 tests, strict TypeScript
 
 Constraint: Use HTTP serving, not `file://`. Keep test data isolated under `storyGuild.test.*`; do not alter `storyGuild.save.v1` or `storyGuild.backup.v1` during automated tests.
 
-## Immediate TODO: Review, Commit, and Deploy Milestones 0–1
+## Historical TODO: Review, Commit, and Deploy Milestones 0–1
 
 - [ ] Review the current diff and generated sprite asset before committing.
 - [ ] Commit and push the Milestones 0–1 implementation and source documents to `main` when the owner approves the changes.
@@ -39,7 +61,7 @@ Expected: GitHub Pages serves the same relative-path build tested locally. The d
 
 Completed evidence: On 2026-08-30, `npm run test:ios-sim` passed the complete local flow on `iPad (A16)` and the constrained-layout suite on `iPad mini (A17 Pro)`, using Xcode 26.6 and iOS Simulator 26.5. Evidence is in the ignored run directory `test-results/ios-simulator/2026-08-30T04-29-05Z/`.
 
-Current blocker: The same run correctly failed only the deployment parity check because GitHub Pages did not contain the new local asset `assets/index-B3WkWkjx.js`. Commit, push, wait for the Pages workflow, and rerun the same command.
+Historical blocker: The August run failed only deployment parity because GitHub Pages did not contain `assets/index-B3WkWkjx.js`. This is historical evidence, not authorization to publish the current redesign.
 
 - [x] Automate both required Simulator form factors through one npm command.
 - [x] Verify onboarding, touch controls, Quest 1 classification and hints, reflection, writing, review, copy, completion, replay, deterministic state, reload/resume, background/resume, Parent Area hold behavior, accessibility persistence, and the native print sheet.
@@ -58,14 +80,15 @@ Needs evidence: Record the physical iPad model, iPadOS version, Safari version, 
 
 - [ ] Launch the deployed game in normal Safari, not Private Browsing.
 - [ ] Complete onboarding in portrait and confirm 16-pixel inputs do not trigger focus zoom.
-- [ ] Test every D-pad direction and the ACTION button with touch.
-- [ ] Confirm the page does not scroll during hub or quest exploration.
-- [ ] Rotate during exploration and verify the same player position, seed, tablet state, and phase remain.
+- [ ] Tap each illustrated prop and its matching HTML button; test bell and handle on separate attempts.
+- [ ] Confirm scrolling never accidentally activates a scene prop or learning choice.
+- [ ] Rotate during exploration and verify the same scene, chosen branch, activity, and phase remain.
 - [ ] Rotate during writing and verify the typed text remains and the focused field stays above the software keyboard.
 - [ ] Background Safari during exploration and writing, then return and verify exact resume.
 - [ ] Close and reopen the tab and verify the resume prompt restores the saved phase.
 - [ ] Complete review and handwriting-copy navigation.
-- [ ] Hold the Parent Alcove control for 1.2 seconds and verify accidental taps do not enter.
+- [ ] Hold Grown-ups for 1.2 seconds and verify accidental taps do not enter Parent Area.
+- [ ] Tap Hear it using a downloaded local English voice; verify mute-first effects and silent fallback.
 - [ ] Open Print Preview and inspect the iPad print/share sheet, page breaks, story text, word count, and attribution.
 - [ ] Test a complete normal lesson for visible frame drops, overheating, or touch delays.
 - [ ] Record defects in `TODO.md` or a dated iPad test report, fix reproducible defects, and rerun `npm run verify` plus the affected device checks.
@@ -74,7 +97,7 @@ Decision: Do not start Quest 2 until the physical iPad smoke-test defects are re
 
 ## Pre-Milestone-2 Hardening TODO
 
-- [ ] Add automated controller coverage proving a save commits before `STATE_COMMITTED` and duplicate pending taps produce only one transition.
+- [x] Add automated controller coverage proving a save commits before `STATE_COMMITTED` and duplicate pending taps produce only one transition.
 - [ ] Add the remaining browser acceptance coverage for reload/resume specifically from reflection, review, and copy phases. The Simulator runner now covers deterministic reload/resume during puzzle, writing, and completion.
 - [ ] Add browser coverage for corrupted-primary recovery and the unrecoverable primary-plus-backup confirmation flow.
 - [x] Complete the development test API phase helpers needed for deterministic Quest 1 Simulator coverage.
@@ -122,7 +145,7 @@ Dependency: Milestone 2 begins only after the physical iPad gate and the relevan
 
 ## Deferred P1 TODO: Only After Complete-Release Approval
 
-- [ ] Add original sound effects or music files through `public/config/game.json`; keep mute-first behavior and test iPad gesture unlocking.
+- [x] Add original sound effects through `public/config/game.json`; the accepted Quest 1 redesign moved effects into scope. Music remains deferred.
 - [ ] Add PWA installation and an offline service worker.
 - [ ] Add more seed packs, map variants, sprite animation, and portraits.
 - [ ] Add downloadable JSON backup/restore and approved accessibility modes.

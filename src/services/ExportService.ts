@@ -1,6 +1,7 @@
 import { APP_CONFIG } from '../config';
 import { COURSE_SUMMARIES } from '../domain/courseCatalog';
-import type { LessonAttempt, SaveDataV1 } from '../domain/models';
+import type { LessonAttempt, StoredSave } from '../domain/models';
+import { SCENE_IDS, storyScene } from '../domain/storybook';
 
 export interface QuestOnePrintModel {
   studentName: string;
@@ -19,14 +20,14 @@ export function escapeHtml(value: string): string {
   })[character] as string);
 }
 
-export function createQuestOnePrintModel(save: SaveDataV1, attempt: LessonAttempt): QuestOnePrintModel {
+export function createQuestOnePrintModel(save: StoredSave, attempt: LessonAttempt): QuestOnePrintModel {
   const lesson = COURSE_SUMMARIES[0];
   if (!lesson || !attempt.artifact) throw new Error('Quest 1 must have an artifact before printing.');
   return {
     studentName: save.profile.studentName,
-    lessonTitle: lesson.title,
+    lessonTitle: attempt.experience ? 'Pip and the Runaway Page' : lesson.title,
     studentGoal: lesson.studentGoal,
-    seedSummary: `${attempt.seed.character}; ${attempt.seed.goal}; ${attempt.seed.trouble}`,
+    seedSummary: attempt.experience ? SCENE_IDS.map((_, index) => storyScene(index, attempt.questState.storybook?.shelfChoice).memory).join('; ') : `${attempt.seed.character}; ${attempt.seed.goal}; ${attempt.seed.trouble}`,
     storyText: attempt.artifact.storyText,
     wordCount: attempt.artifact.wordCount,
     copyDate: attempt.copyStatus.completedAt ?? 'Not copied yet',
@@ -44,7 +45,7 @@ export function renderPrintHtml(model: QuestOnePrintModel): string {
         <p><strong>Adventure seed:</strong> ${escapeHtml(model.seedSummary)}</p>
         <blockquote>${escapeHtml(model.storyText)}</blockquote>
         <p>${model.wordCount} story words · Copy completed: ${escapeHtml(model.copyDate)}</p>
-        <div class="handwriting-lines" aria-label="Handwriting practice lines"></div>
+        <div class="handwriting-lines" aria-label="Handwriting practice lines">${'<span aria-hidden="true"></span>'.repeat(5)}</div>
       </section>
       <footer>${escapeHtml(model.attribution)}</footer>
     </article>`;

@@ -19,7 +19,7 @@ export class BrowserAudioAdapter implements AudioAdapter {
       try {
         await audio.play();
         this.active.set(cue, audio);
-        audio.addEventListener('ended', () => this.active.delete(cue), { once: true });
+        audio.addEventListener('ended', () => { if (this.active.get(cue) === audio) this.active.delete(cue); }, { once: true });
         return;
       } catch (error) {
         lastError = error;
@@ -51,6 +51,7 @@ export class AudioService {
   isEnabled(): boolean { return this.enabled; }
 
   unlockFromGesture(): void { this.unlocked = true; }
+  stopAll(): void { (Object.keys(this.manifest.audio.cues) as AudioCueId[]).forEach((cue) => this.adapter.stop(cue)); }
   setEnabled(enabled: boolean): void {
     this.enabled = enabled;
     if (!enabled) {

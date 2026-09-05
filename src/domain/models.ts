@@ -13,6 +13,7 @@ export type AppPhase =
   | 'reflection'
   | 'writing'
   | 'review'
+  | 'celebration'
   | 'copy'
   | 'complete'
   | 'parent'
@@ -20,7 +21,7 @@ export type AppPhase =
   | 'storageError';
 
 export type QuestPhase = Extract<AppPhase,
-  'questBriefing' | 'explore' | 'puzzle' | 'reflection' | 'writing' | 'review' | 'copy' | 'complete'>;
+  'questBriefing' | 'explore' | 'puzzle' | 'reflection' | 'writing' | 'review' | 'celebration' | 'copy' | 'complete'>;
 
 export type CharacterId = 'player' | 'rowan' | 'pip' | 'mira' | 'tink' | 'sage';
 export type Direction = 'up' | 'down' | 'left' | 'right';
@@ -62,6 +63,22 @@ export interface GameManifestV1 {
     masterVolume: number;
     cues: Partial<Record<AudioCueId, AudioCueConfig>>;
   };
+  storybook?: { images: Record<string, string> };
+}
+
+export type StorySceneId = 'sleepy-book' | 'bookshelf' | 'paper-boat';
+export type ShelfChoice = 'bell' | 'handle';
+export type StoryActivity = 'interact' | 'compare' | 'change' | 'resolved';
+
+export interface StorybookProgress {
+  sceneIndex: number;
+  activity: StoryActivity;
+  shelfChoice?: ShelfChoice;
+  completedScenes: StorySceneId[];
+  attempts: Record<string, number>;
+  help: Record<string, boolean>;
+  assisted: string[];
+  illustration: StorySceneId;
 }
 
 export interface StorySeed {
@@ -101,6 +118,7 @@ export interface QuestOneState {
   activeTabletId?: string;
   reflectionIndex: number;
   writingIndex: number;
+  storybook?: StorybookProgress;
 }
 
 export interface CopyStatus {
@@ -130,6 +148,7 @@ export interface LessonAttempt {
   startedAt: string;
   updatedAt: string;
   completedAt?: string;
+  experience?: 'storybook-v1';
 }
 
 export interface SaveDataV1 {
@@ -155,9 +174,12 @@ export interface SaveDataV1 {
   attempts: Record<string, LessonAttempt>;
 }
 
+export interface SaveDataV2 extends Omit<SaveDataV1, 'schemaVersion'> { schemaVersion: 2 }
+export type StoredSave = SaveDataV1 | SaveDataV2;
+
 export interface AppState {
   phase: AppPhase;
-  save: SaveDataV1 | null;
+  save: SaveDataV2 | null;
   recoveryNotice?: string;
   configNotice?: string;
 }

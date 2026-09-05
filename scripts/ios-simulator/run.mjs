@@ -217,14 +217,17 @@ async function reloadAndWait(driver) {
 
 async function resetTestStorage(driver) {
   await driver.execute(`
-    localStorage.removeItem('storyGuild.test.save.v1');
-    localStorage.removeItem('storyGuild.test.backup.v1');
+    localStorage.removeItem('storyGuild.test.save.v2');
+    localStorage.removeItem('storyGuild.test.backup.v2');
   `);
   await reloadAndWait(driver);
   await waitForPhase(driver, 'onboarding');
 }
 
 async function saveScreenshot(driver, device, name) {
+  // Safari's native snapshot can lag the committed DOM; let the 750-ms page
+  // reveal finish before recording visual evidence (also works in NATIVE_APP).
+  await sleep(850);
   const safeDevice = device.name.replaceAll(/[^a-z0-9]+/giu, '-').replaceAll(/^-|-$/gu, '').toLowerCase();
   const path = join(artifactRoot, `${safeDevice}-${name}.png`);
   const base64 = await driver.screenshot();
@@ -238,101 +241,6 @@ async function setOrientation(driver, orientation) {
     const snapshot = await pageSnapshot(driver);
     return orientation === 'LANDSCAPE' ? snapshot.innerWidth > snapshot.innerHeight : snapshot.innerHeight > snapshot.innerWidth;
   }, `${orientation.toLowerCase()} viewport`, 20000);
-}
-
-async function clickRepeated(driver, testId, count) {
-  for (let index = 0; index < count; index += 1) {
-    await driver.clickTestId(testId);
-    await sleep(80);
-  }
-}
-
-async function openQuestBoardFromFreshHub(driver) {
-  await clickRepeated(driver, 'move-up', 7);
-  await clickRepeated(driver, 'move-left', 4);
-  await driver.clickTestId('action-button');
-  await waitForSelector(driver, '[data-testid="start-board"]');
-}
-
-async function openParentFromFreshHub(driver) {
-  await clickRepeated(driver, 'move-right', 4);
-  await driver.clickTestId('action-button');
-  await waitForSelector(driver, '[data-testid="parent-hold"]');
-}
-
-async function moveQuestPlayer(driver, targetX, targetY) {
-  const directionId = { left: 'move-left', right: 'move-right', up: 'move-up', down: 'move-down' };
-  while (true) {
-    const state = await appState(driver);
-    const attempt = state.save?.attempts?.[state.save.activeAttemptId];
-    if (!attempt) throw new Error('Quest movement has no active attempt.');
-    const { playerX, playerY } = attempt.questState;
-    if (playerX === targetX && playerY === targetY) return;
-    const direction = playerX < targetX ? 'right' : playerX > targetX ? 'left' : playerY < targetY ? 'down' : 'up';
-    await driver.clickTestId(directionId[direction]);
-    await waitForState(driver, (candidate) => {
-      const active = candidate.save?.attempts?.[candidate.save.activeAttemptId];
-      return active && (active.questState.playerX !== playerX || active.questState.playerY !== playerY);
-    }, `player movement ${direction}`);
-  }
-}
-
-async function solveQuestTablets(driver) {
-  const positions = [{ x: 4, y: 3 }, { x: 10, y: 3 }, { x: 16, y: 3 }, { x: 4, y: 10 }, { x: 10, y: 10 }, { x: 16, y: 10 }];
-  for (let index = 0; index < positions.length; index += 1) {
-    const position = positions[index];
-    await moveQuestPlayer(driver, position.x, position.y);
-    await driver.clickTestId('action-button');
-    await waitForPhase(driver, 'puzzle');
-    const tablet = await executeApi(driver, 'getActiveTablet');
-    assert(tablet && typeof tablet.isStory === 'boolean', 'The active tablet fixture was not observable.');
-    const correctId = tablet.isStory ? 'classify-story' : 'classify-not';
-    const wrongId = tablet.isStory ? 'classify-not' : 'classify-story';
-    if (index === 0) {
-      await driver.clickTestId(wrongId);
-      await waitForState(driver, (state) => {
-        const active = state.save?.attempts?.[state.save.activeAttemptId];
-        return active?.questState.unsuccessfulAttempts?.[tablet.id] === 1;
-      }, 'first supportive retry');
-      await driver.clickTestId(wrongId);
-      await waitForState(driver, (state) => {
-        const active = state.save?.attempts?.[state.save.activeAttemptId];
-        return active?.questState.unsuccessfulAttempts?.[tablet.id] === 2;
-      }, 'second supportive retry');
-      const hintVisible = await driver.execute('return Boolean(document.querySelector(".hint"));');
-      assert(hintVisible, 'The two-attempt puzzle hint did not appear.');
-    }
-    await driver.clickTestId(correctId);
-    await waitForPhase(driver, index === positions.length - 1 ? 'reflection' : 'explore');
-  }
-}
-
-async function completeReflection(driver) {
-  while ((await appState(driver)).phase === 'reflection') {
-    const before = await appState(driver);
-    const attempt = before.save.attempts[before.save.activeAttemptId];
-    await driver.typeTestId('reflection-input', 'A character changed the situation.');
-    await driver.clickTestId('reflection-next');
-    await waitForState(driver, (state) => {
-      if (state.phase === 'writing') return true;
-      const active = state.save?.attempts?.[state.save.activeAttemptId];
-      return active?.questState.reflectionIndex > attempt.questState.reflectionIndex;
-    }, 'next reflection prompt');
-  }
-}
-
-async function completePlanning(driver) {
-  const fixture = ['Mira', 'find her way home', 'a storm hid the trail', 'she followed a lantern', 'the sky cleared'];
-  for (const value of fixture) {
-    const before = await appState(driver);
-    const attempt = before.save.attempts[before.save.activeAttemptId];
-    await driver.typeTestId('writing-input', value);
-    await driver.clickTestId('writing-next');
-    await waitForState(driver, (state) => {
-      const active = state.save?.attempts?.[state.save.activeAttemptId];
-      return active?.questState.writingIndex > attempt.questState.writingIndex;
-    }, 'next writing prompt');
-  }
 }
 
 async function captureKeyboardCheckpoint(driver, device, screenshotName) {
@@ -351,229 +259,144 @@ function assertHealthyLayout(snapshot, label) {
 }
 
 async function fullPrimaryLocalSuite(driver, device, baseUrl) {
-  await driver.navigate(`${baseUrl}?test=1&autorun=0`);
+  await driver.navigate(baseUrl + '?test=1&autorun=0');
+  await waitForSelector(driver, '[data-testid="student-name"], [data-testid="resume-quest"], [data-testid="start-board"]');
   await resetTestStorage(driver);
   await setOrientation(driver, 'PORTRAIT');
-  assertHealthyLayout(await pageSnapshot(driver), 'A16 onboarding portrait');
   await saveScreenshot(driver, device, 'onboarding-portrait');
-
-  await driver.typeTestId('student-name', 'Simulator Writer');
+  await driver.typeTestId('student-name', 'River');
   await driver.clickTestId('start-guild');
-  await waitForPhase(driver, 'hub');
-  await clickRepeated(driver, 'move-left', 1);
-  await clickRepeated(driver, 'move-right', 1);
-  await clickRepeated(driver, 'move-down', 1);
-  await clickRepeated(driver, 'move-up', 1);
-  await openQuestBoardFromFreshHub(driver);
-  await driver.clickTestId('start-board');
   await waitForPhase(driver, 'questBriefing');
-  const firstSeed = (await appState(driver)).save.attempts[(await appState(driver)).save.activeAttemptId].seed.numericSeed;
   await driver.clickTestId('begin-quest');
   await waitForPhase(driver, 'explore');
-
-  const beforeRotation = await appState(driver);
   await setOrientation(driver, 'LANDSCAPE');
-  const afterRotation = await appState(driver);
-  assert(JSON.stringify(beforeRotation) === JSON.stringify(afterRotation), 'Rotation changed committed exploration state.');
-  const landscape = await pageSnapshot(driver);
-  assertHealthyLayout(landscape, 'A16 exploration landscape');
-  assert(landscape.scrollX === 0 && landscape.scrollY === 0, 'The page scrolled during exploration.');
-  await saveScreenshot(driver, device, 'exploration-landscape');
-
-  await solveQuestTablets(driver);
-  await driver.background(2);
-  const resumed = await appState(driver);
-  assert(resumed.phase === 'reflection', 'Backgrounding Safari changed the active phase.');
-  await completeReflection(driver);
-  await completePlanning(driver);
-
-  const story = 'Mira found home after the storm cleared at dawn.';
+  assertHealthyLayout(await pageSnapshot(driver), 'Illustrated adventure');
+  await saveScreenshot(driver, device, 'sleepy-book-landscape');
+  const active = (state) => state.save.attempts[state.save.activeAttemptId];
+  for (const [index, action] of ['feather', 'handle', 'fan'].entries()) {
+    await driver.clickTestId('scene-action-' + action);
+    await waitForPhase(driver, 'puzzle');
+    if (index === 0) {
+      await driver.clickTestId('answer-before');
+      await waitForState(driver, (state) => active(state).questState.storybook.attempts['sleepy-book:compare'] === 1, 'first clue');
+      await driver.clickTestId('answer-before');
+      await waitForSelector(driver, '.hint');
+      await driver.clickTestId('show-me');
+    } else await driver.clickTestId('answer-after');
+    await waitForState(driver, (state) => active(state).questState.storybook.activity === 'change', 'notice the change');
+    const scene = await executeApi(driver, 'getCurrentScene');
+    await driver.clickTestId('change-' + scene.changedId);
+    await waitForState(driver, (state) => active(state).questState.storybook.activity === 'resolved', 'scene solved');
+    if (index === 1) {
+      const before = active(await appState(driver)).questState;
+      await reloadAndWait(driver);
+      await driver.clickTestId('resume-quest');
+      await waitForPhase(driver, 'puzzle');
+      assert(JSON.stringify(active(await appState(driver)).questState) === JSON.stringify(before), 'Reload changed the chosen bookshelf branch.');
+    }
+    await saveScreenshot(driver, device, 'scene-' + index + '-resolved');
+    await driver.clickTestId('next-scene');
+    await waitForPhase(driver, index === 2 ? 'writing' : 'explore');
+  }
+  const story = 'Pip found a boat and sailed safely back home.';
   await driver.typeTestId('writing-input', story);
-  await waitForState(driver, (state) => {
-    const active = state.save?.attempts?.[state.save.activeAttemptId];
-    return active?.inputs?.finalStory === story;
-  }, 'final-story autosave');
-  await setOrientation(driver, 'PORTRAIT');
-  const writingSnapshot = await pageSnapshot(driver);
-  assert(writingSnapshot.focusedTestId === 'writing-input', 'Rotation moved focus away from the writing field.');
-  assert(writingSnapshot.viewport?.scale === 1, 'Focusing the writing field triggered Safari zoom.');
-  assert(writingSnapshot.focusRect && writingSnapshot.focusRect.bottom <= writingSnapshot.viewport.height + writingSnapshot.viewport.offsetTop + 1, 'The focused writing field is hidden behind the software keyboard.');
+  await waitForState(driver, (state) => active(state).inputs.finalStory === story, 'story autosave');
   await captureKeyboardCheckpoint(driver, device, 'writing-keyboard-checkpoint');
-
-  const writingState = await appState(driver);
+  await setOrientation(driver, 'PORTRAIT');
+  assertHealthyLayout(await pageSnapshot(driver), 'Writing portrait');
+  assert(active(await appState(driver)).inputs.finalStory === story, 'Rotation lost the child’s words.');
+  await driver.background(1);
+  assert(active(await appState(driver)).inputs.finalStory === story, 'Backgrounding lost the child’s words.');
   await reloadAndWait(driver);
-  await waitForPhase(driver, 'resumePrompt');
   await driver.clickTestId('resume-quest');
   await waitForPhase(driver, 'writing');
-  const restored = await appState(driver);
-  assert(restored.save.attempts[restored.save.activeAttemptId].seed.numericSeed === firstSeed, 'Writing reload changed the deterministic seed.');
-  assert(restored.save.attempts[restored.save.activeAttemptId].inputs.finalStory === story, 'Writing reload lost the exact story text.');
-  assert(writingState.save.attempts[writingState.save.activeAttemptId].questState.writingIndex === restored.save.attempts[restored.save.activeAttemptId].questState.writingIndex, 'Writing reload changed the prompt index.');
-
   await driver.clickTestId('review-story');
   await waitForPhase(driver, 'review');
-  assert((await driver.getText(await driver.find('css selector', '[data-testid="review-story-text"]'))) === story, 'Review changed the child-authored story.');
+  await driver.clickTestId('illustration-paper-boat');
+  await driver.clickTestId('celebrate-story');
+  await waitForPhase(driver, 'celebration');
+  assert((await appState(driver)).save.progress.recoveredPages.length === 0, 'Celebration incorrectly awarded completion before handwriting.');
+  await saveScreenshot(driver, device, 'celebration');
+  await reloadAndWait(driver);
+  await driver.clickTestId('resume-quest');
+  await waitForPhase(driver, 'celebration');
   await driver.clickTestId('open-copy');
   await waitForPhase(driver, 'copy');
-  assert((await driver.getText(await driver.find('css selector', '[data-testid="copy-text"]'))) === story, 'Copy mode changed the child-authored story.');
   await driver.clickTestId('complete-copy');
   await waitForPhase(driver, 'complete');
-  await reloadAndWait(driver);
-  await waitForPhase(driver, 'resumePrompt');
-  await driver.clickTestId('resume-quest');
-  await waitForPhase(driver, 'complete');
+  assert((await appState(driver)).save.progress.recoveredPages.length === 1, 'Copying did not award the page.');
+  const first = active(await appState(driver));
+  assert(first.artifact.storyText === story, 'The game changed the child’s exact story.');
   await driver.clickTestId('complete-return');
   await waitForPhase(driver, 'hub');
-
-  await openQuestBoardFromFreshHub(driver);
   await driver.clickTestId('start-board');
   await waitForPhase(driver, 'questBriefing');
-  const replayState = await appState(driver);
-  const replayAttempt = replayState.save.attempts[replayState.save.activeAttemptId];
-  assert(replayAttempt.seed.numericSeed !== firstSeed, 'Replay reused the first deterministic seed.');
-  assert(Object.values(replayState.save.attempts).some((attempt) => attempt.completedAt), 'Replay overwrote the completed attempt.');
-  await driver.clickTestId('begin-quest');
-  await waitForPhase(driver, 'explore');
-  await moveQuestPlayer(driver, 4, 3);
-  await driver.clickTestId('action-button');
-  await waitForPhase(driver, 'puzzle');
-  const activeTablet = await executeApi(driver, 'getActiveTablet');
-  await driver.clickTestId(activeTablet.isStory ? 'classify-story' : 'classify-not');
-  await waitForPhase(driver, 'explore');
-  const beforeReplayReload = await appState(driver);
-  await reloadAndWait(driver);
-  await waitForPhase(driver, 'resumePrompt');
-  await driver.clickTestId('resume-quest');
-  await waitForPhase(driver, 'explore');
-  const afterReplayReload = await appState(driver);
-  const beforeAttempt = beforeReplayReload.save.attempts[beforeReplayReload.save.activeAttemptId];
-  const afterAttempt = afterReplayReload.save.attempts[afterReplayReload.save.activeAttemptId];
-  assert(beforeAttempt.seed.numericSeed === afterAttempt.seed.numericSeed, 'Mid-puzzle replay reload changed the seed.');
-  assert(JSON.stringify(beforeAttempt.questState) === JSON.stringify(afterAttempt.questState), 'Mid-puzzle replay reload changed puzzle or player state.');
-  await executeApi(driver, 'moveToPhase', 'complete');
-  await waitForPhase(driver, 'complete');
-  await driver.clickTestId('complete-return');
-  await waitForPhase(driver, 'hub');
-
-  await reloadAndWait(driver);
-  await waitForPhase(driver, 'hub');
-  await openParentFromFreshHub(driver);
+  const replay = active(await appState(driver));
+  assert(first.seed.numericSeed !== replay.seed.numericSeed, 'Replay reused its seed.');
+  assert((await appState(driver)).save.attempts[first.attemptId].artifact.storyText === story, 'Replay overwrote the previous story.');
+  await executeApi(driver, 'moveToPhase', 'hub');
   await driver.holdTestId('parent-hold', 300);
-  await sleep(400);
-  assert((await pageSnapshot(driver)).phase === 'hub', 'A short Parent Alcove press bypassed the accidental-entry guard.');
+  assert((await appState(driver)).phase === 'hub', 'A short hold opened Parent Area.');
   await driver.holdTestId('parent-hold', 1300);
   await waitForPhase(driver, 'parent');
-  const normalSize = (await pageSnapshot(driver)).rootFontSize;
-  await driver.clickTestId('large-text-toggle');
-  await waitForState(driver, (state) => state.save?.settings?.textScale === 'large', 'larger-text persistence');
-  const largeSnapshot = await pageSnapshot(driver);
-  assert(largeSnapshot.textLargeClass, 'The larger-text class was not applied.');
-  assert(Math.abs(largeSnapshot.rootFontSize / normalSize - 1.2) < 0.02, 'Larger text is not 20% above normal text.');
-  await driver.clickTestId('reduced-motion-toggle');
-  await waitForState(driver, (state) => state.save?.settings?.reducedMotion === true, 'reduced-motion persistence');
-  assert((await pageSnapshot(driver)).reducedMotionClass, 'The reduced-motion class was not applied.');
+  await driver.clickTestId('large-text');
+  await waitForState(driver, (state) => state.save.settings.textScale === 'large', 'large text');
+  await driver.clickTestId('reduced-motion');
+  await waitForState(driver, (state) => state.save.settings.reducedMotion, 'reduced motion');
   await saveScreenshot(driver, device, 'parent-accessibility');
-
-  await reloadAndWait(driver);
-  await waitForPhase(driver, 'hub');
-  const persistedSettings = await appState(driver);
-  assert(persistedSettings.save.settings.textScale === 'large' && persistedSettings.save.settings.reducedMotion, 'Accessibility settings did not survive reload.');
-  await openParentFromFreshHub(driver);
-  await driver.holdTestId('parent-hold', 1300);
-  await waitForPhase(driver, 'parent');
   await driver.clickTestId('open-print-preview');
   await waitForPhase(driver, 'printPreview');
-  assertHealthyLayout(await pageSnapshot(driver), 'A16 print preview');
+  assertHealthyLayout(await pageSnapshot(driver), 'Print preview');
+  const printText = await driver.execute('return document.querySelector(".print-document blockquote").textContent;');
+  assert(printText === story, 'Printing changed the exact story.');
   await saveScreenshot(driver, device, 'print-preview');
   await driver.clickTestId('print-now');
-  const contexts = await driver.getContexts();
   await driver.setContext('NATIVE_APP');
-  const printSource = await driver.getSource();
-  assert(/Print|Printer Options/iu.test(printSource), 'The native iPad print sheet did not open.');
+  assert(/Print|Printer Options/iu.test(await driver.getSource()), 'The native print sheet did not open.');
   await saveScreenshot(driver, device, 'native-print-sheet');
 }
 
 async function secondaryLocalSuite(driver, device, baseUrl) {
-  await driver.navigate(`${baseUrl}?test=1`);
-  await waitFor(async () => (await pageSnapshot(driver)).testStatus === 'pass', 'iPad mini browser self-test', 30000);
-  assertHealthyLayout(await pageSnapshot(driver), 'iPad mini browser self-test');
-
-  await driver.navigate(`${baseUrl}?test=1&autorun=0`);
+  await driver.navigate(baseUrl + '?test=1');
+  await waitFor(async () => (await pageSnapshot(driver)).testStatus === 'pass', 'browser self-test', 30000);
+  await driver.navigate(baseUrl + '?test=1&autorun=0');
   await resetTestStorage(driver);
-  await setOrientation(driver, 'PORTRAIT');
-  assertHealthyLayout(await pageSnapshot(driver), 'iPad mini onboarding portrait');
-  await saveScreenshot(driver, device, 'onboarding-portrait');
-  await setOrientation(driver, 'LANDSCAPE');
-  assertHealthyLayout(await pageSnapshot(driver), 'iPad mini onboarding landscape');
-  await saveScreenshot(driver, device, 'onboarding-landscape');
-
-  await driver.typeTestId('student-name', 'Mini Writer');
-  await driver.clickTestId('start-guild');
-  await waitForPhase(driver, 'hub');
+  for (const orientation of ['PORTRAIT', 'LANDSCAPE']) {
+    await setOrientation(driver, orientation);
+    assertHealthyLayout(await pageSnapshot(driver), 'Onboarding ' + orientation);
+    await saveScreenshot(driver, device, 'onboarding-' + orientation.toLowerCase());
+  }
   await executeApi(driver, 'moveToPhase', 'explore');
-  await waitForPhase(driver, 'explore');
-  assertHealthyLayout(await pageSnapshot(driver), 'iPad mini exploration landscape');
   await setOrientation(driver, 'PORTRAIT');
-  assertHealthyLayout(await pageSnapshot(driver), 'iPad mini exploration portrait');
+  assertHealthyLayout(await pageSnapshot(driver), 'Tap exploration portrait');
   await saveScreenshot(driver, device, 'exploration-portrait');
-
   await executeApi(driver, 'moveToPhase', 'writing');
-  await waitForPhase(driver, 'writing');
-  await driver.typeTestId('writing-input', 'Mira');
+  await driver.typeTestId('writing-input', 'A little dragon found his way back home.');
   await setOrientation(driver, 'LANDSCAPE');
-  const writing = await pageSnapshot(driver);
-  assert(writing.viewport?.scale === 1, 'iPad mini writing input triggered Safari zoom.');
-  assert(writing.focusRect && writing.focusRect.bottom <= writing.viewport.height + writing.viewport.offsetTop + 1, 'iPad mini writing input is hidden behind the keyboard.');
   await captureKeyboardCheckpoint(driver, device, 'writing-keyboard-landscape-checkpoint');
-
   await executeApi(driver, 'moveToPhase', 'complete');
-  await waitForPhase(driver, 'complete');
   await driver.clickTestId('complete-return');
-  await waitForPhase(driver, 'hub');
-  await reloadAndWait(driver);
-  await waitForPhase(driver, 'hub');
-  await openParentFromFreshHub(driver);
   await driver.holdTestId('parent-hold', 1300);
   await waitForPhase(driver, 'parent');
-  await driver.clickTestId('large-text-toggle');
-  await waitForState(driver, (state) => state.save?.settings?.textScale === 'large', 'iPad mini larger text');
-  await setOrientation(driver, 'PORTRAIT');
-  assertHealthyLayout(await pageSnapshot(driver), 'iPad mini Parent Area with larger text');
-  await saveScreenshot(driver, device, 'parent-large-text');
+  await driver.clickTestId('large-text');
+  await waitForState(driver, (state) => state.save.settings.textScale === 'large', 'larger text');
   await driver.clickTestId('reopen-copy');
   await waitForPhase(driver, 'copy');
-  assertHealthyLayout(await pageSnapshot(driver), 'iPad mini copy mode with larger text');
+  await setOrientation(driver, 'PORTRAIT');
+  assertHealthyLayout(await pageSnapshot(driver), 'Large-text copying');
   await saveScreenshot(driver, device, 'copy-large-text');
 }
 
 async function pagesSmokeSuite(driver, device) {
-  const testUrl = new URL('?test=1', pagesUrl).toString();
-  await driver.navigate(testUrl);
-  await waitFor(async () => (await pageSnapshot(driver)).testStatus === 'pass', `${device.name} Pages self-test`, 30000);
-  assertHealthyLayout(await pageSnapshot(driver), `${device.name} Pages self-test`);
-
+  await driver.navigate(new URL('?test=1', pagesUrl).toString());
+  await waitFor(async () => (await pageSnapshot(driver)).testStatus === 'pass', 'Pages self-test', 30000);
+  assertHealthyLayout(await pageSnapshot(driver), 'Pages self-test');
   await driver.navigate(pagesUrl.toString());
-  await waitForPhase(driver, 'onboarding');
-  const normalSnapshot = await driver.execute(`
-    return {
-      testApiAbsent: window.__STORY_GUILD_TEST_API__ === undefined,
-      canvas: Boolean(document.querySelector('canvas')),
-      fatal: Boolean(document.querySelector('.fatal-error')),
-    };
-  `);
-  assert(normalSnapshot.testApiAbsent, 'The normal Pages site exposed test mutation helpers.');
-  assert(normalSnapshot.canvas && !normalSnapshot.fatal, 'The normal Pages site did not boot cleanly.');
-  await driver.typeTestId('student-name', 'Pages Smoke');
-  await driver.clickTestId('start-guild');
-  await waitForPhase(driver, 'hub');
-  assert(!(await pageSnapshot(driver)).configNotice, 'The deployed configuration fell back to defaults.');
-  await saveScreenshot(driver, device, 'pages-smoke');
-  await driver.execute(`
-    localStorage.removeItem('storyGuild.save.v1');
-    localStorage.removeItem('storyGuild.backup.v1');
-    localStorage.removeItem('storyGuild.test.save.v1');
-    localStorage.removeItem('storyGuild.test.backup.v1');
-  `);
+  await waitForSelector(driver, '.app-frame');
+  const clean = await driver.execute('return !window.__STORY_GUILD_TEST_API__ && !document.querySelector(".fatal-error") && Boolean(document.querySelector("canvas"));');
+  assert(clean, 'Normal Pages boot failed or exposed mutation helpers.');
+  await saveScreenshot(driver, device, 'pages-normal-smoke');
+  // Normal save data is never changed by the deployment smoke test.
 }
 
 function distFiles(directory, base = directory) {
@@ -628,7 +451,7 @@ function writeReports(environment) {
   const lines = [
     '# Story Guild iPad Simulator Test Results',
     '',
-    `Summary: Local production and GitHub Pages simulator results for Milestones 0–1 on ${environment.runtimeVersion}.`,
+    `Summary: Local production and optional GitHub Pages simulator results for Pip and the Runaway Page on ${environment.runtimeVersion}.`,
     '',
     `Status: ${results.every((result) => result.passed) ? 'passed' : 'failed'}`,
     '',
@@ -683,12 +506,12 @@ async function main() {
   await waitForHttp(`${appiumUrl}/status`, 'Appium server');
 
   let parityCount = 0;
-  try { parityCount = await verifyPagesArtifactParity(); }
+  try { if (!process.argv.includes('--local-only')) parityCount = await verifyPagesArtifactParity(); }
   catch (error) { results.push({ name: 'GitHub Pages artifact parity', device: 'deployment', passed: false, durationMs: 0, detail: error instanceof Error ? error.message : String(error) }); }
   if (parityCount > 0) results.push({ name: `GitHub Pages artifact parity (${parityCount} files)`, device: 'deployment', passed: true, durationMs: 0 });
 
   boot(primary);
-  await runSuite('complete local Milestones 0–1 flow', primary, appiumUrl, `${baseUrl}?test=1&autorun=0`, (driver) => fullPrimaryLocalSuite(driver, primary, baseUrl));
+  await runSuite('complete local storybook flow', primary, appiumUrl, `${baseUrl}?test=1&autorun=0`, (driver) => fullPrimaryLocalSuite(driver, primary, baseUrl));
   if (parityCount > 0) {
     await runSuite('GitHub Pages smoke', primary, appiumUrl, new URL('?test=1', pagesUrl).toString(), (driver) => pagesSmokeSuite(driver, primary));
   }

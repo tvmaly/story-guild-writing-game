@@ -45,7 +45,7 @@ describe('SaveRepository', () => {
   });
 
   it('rejects unsupported future schemas', () => {
-    expect(validateSaveData({ ...save(), schemaVersion: 2 })).toBe(false);
+    expect(validateSaveData({ ...save(), schemaVersion: 3 })).toBe(false);
   });
 
   it('rejects invalid persisted accessibility settings', () => {
@@ -56,5 +56,22 @@ describe('SaveRepository', () => {
     const invalidMotion = structuredClone(save()) as unknown as { settings: Record<string, unknown> };
     invalidMotion.settings.reducedMotion = 'yes';
     expect(validateSaveData(invalidMotion)).toBe(false);
+  });
+
+  it('imports the old unfinished attempt without modifying either original save', () => {
+    const storage = new MemoryStorageAdapter();
+    const original = JSON.stringify(save());
+    storage.setItem('old', original); storage.setItem('old-backup', original);
+    const repository = new SaveRepository(storage, { primary: 'new', backup: 'new-backup' }, { primary: 'old', backup: 'old-backup' });
+    expect(repository.load()).toMatchObject({ status: 'recovered', save: { schemaVersion: 2, attempts: { 'L01-1-test': { phase: 'writing', inputs: { finalStory: 'saved words' } } } } });
+    expect(storage.getItem('old')).toBe(original); expect(storage.getItem('old-backup')).toBe(original);
+    repository.clear(); expect(repository.load()).toEqual({ status: 'empty' });
+    expect(storage.getItem('old')).toBe(original);
+  });
+
+  it('does not fall back to an older version when both new saves are corrupt', () => {
+    const storage = new MemoryStorageAdapter(); storage.setItem('old', JSON.stringify(save()));
+    storage.setItem('new', '{bad'); storage.setItem('new-backup', '{bad');
+    expect(new SaveRepository(storage, { primary: 'new', backup: 'new-backup' }, { primary: 'old', backup: 'old-backup' }).load().status).toBe('unrecoverable');
   });
 });

@@ -1,4 +1,5 @@
 import { CHARACTER_IDS, DEFAULT_MANIFEST } from '../config';
+import { STORYBOOK_IMAGES } from '../domain/storybook';
 import type { AudioCueConfig, CharacterVisualConfig, DirectionAnimation, GameManifestV1 } from '../domain/models';
 
 export interface ManifestLoadResult {
@@ -13,10 +14,11 @@ const animationKeys: DirectionAnimation[] = [
 
 const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
 const finiteRange = (value: unknown, min: number, max: number): value is number => typeof value === 'number' && Number.isFinite(value) && value >= min && value <= max;
+const localPath = (value: unknown): value is string => typeof value === 'string' && /^[a-z0-9][a-z0-9_./-]*$/iu.test(value) && !value.split('/').includes('..');
 
 function isCharacter(value: unknown): value is CharacterVisualConfig {
   if (!isObject(value) || typeof value.displayName !== 'string' || value.displayName.trim() === '') return false;
-  if (typeof value.spriteUrl !== 'string' || value.spriteUrl.trim() === '' || value.spriteUrl.startsWith('/') || value.spriteUrl.includes('://')) return false;
+  if (!localPath(value.spriteUrl)) return false;
   if (!finiteRange(value.frameWidth, 1, 256) || !finiteRange(value.frameHeight, 1, 256) || !finiteRange(value.scale, 0.25, 8)) return false;
   if (value.tint !== undefined && (typeof value.tint !== 'string' || !/^#[0-9a-f]{6}$/iu.test(value.tint))) return false;
   if (!isObject(value.animations)) return false;
@@ -29,7 +31,7 @@ function isCharacter(value: unknown): value is CharacterVisualConfig {
 
 function isCue(value: unknown): value is AudioCueConfig {
   if (!isObject(value) || !Array.isArray(value.sources) || value.sources.length === 0) return false;
-  if (!value.sources.every((source) => typeof source === 'string' && source !== '' && !source.startsWith('/') && !source.includes('://'))) return false;
+  if (!value.sources.every(localPath)) return false;
   if (!finiteRange(value.volume, 0, 1)) return false;
   return value.loop === undefined || typeof value.loop === 'boolean';
 }
@@ -39,6 +41,11 @@ export function validateManifest(value: unknown): value is GameManifestV1 {
   const characters = value.characters;
   if (!CHARACTER_IDS.every((id) => isCharacter(characters[id]))) return false;
   if (value.audio.enabledByDefault !== false || !finiteRange(value.audio.masterVolume, 0, 1) || !isObject(value.audio.cues)) return false;
+  if (value.storybook !== undefined) {
+    if (!isObject(value.storybook) || !isObject(value.storybook.images)) return false;
+    const images = value.storybook.images;
+    if (!Object.values(images).every(localPath) || !Object.keys(STORYBOOK_IMAGES).every((key) => localPath(images[key]))) return false;
+  }
   return Object.values(value.audio.cues).every(isCue);
 }
 

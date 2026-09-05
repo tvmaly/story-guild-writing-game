@@ -1,14 +1,17 @@
 import type { CharacterId, CharacterVisualConfig, GameManifestV1 } from './domain/models';
+import { STORYBOOK_IMAGES } from './domain/storybook';
 
 export const APP_CONFIG = Object.freeze({
   appName: 'The Story Guild: Twelve Quests',
   storageKeys: Object.freeze({
-    normal: Object.freeze({ primary: 'storyGuild.save.v1', backup: 'storyGuild.backup.v1' }),
-    test: Object.freeze({ primary: 'storyGuild.test.save.v1', backup: 'storyGuild.test.backup.v1' }),
+    normal: Object.freeze({ primary: 'storyGuild.save.v2', backup: 'storyGuild.backup.v2' }),
+    test: Object.freeze({ primary: 'storyGuild.test.save.v2', backup: 'storyGuild.test.backup.v2' }),
+    legacy: Object.freeze({ primary: 'storyGuild.save.v1', backup: 'storyGuild.backup.v1' }),
+    legacyTest: Object.freeze({ primary: 'storyGuild.test.save.v1', backup: 'storyGuild.test.backup.v1' }),
   }),
   manifestPath: 'config/game.json',
-  internalWidth: 320,
-  internalHeight: 240,
+  internalWidth: 1024,
+  internalHeight: 768,
   tileSize: 16,
   autosaveMs: 500,
   parentHoldMs: 1200,
@@ -53,6 +56,7 @@ export const DEFAULT_MANIFEST: GameManifestV1 = {
     masterVolume: 0.7,
     cues: {},
   },
+  storybook: { images: STORYBOOK_IMAGES },
 };
 
 export const CHARACTER_IDS: CharacterId[] = ['player', 'rowan', 'pip', 'mira', 'tink', 'sage'];

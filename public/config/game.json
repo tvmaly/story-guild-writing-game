@@ -11,6 +11,26 @@
   "audio": {
     "enabledByDefault": false,
     "masterVolume": 0.7,
-    "cues": {}
+    "cues": {
+      "uiActivate": { "sources": ["assets/audio/tap.wav"], "volume": 0.45 },
+      "uiBack": { "sources": ["assets/audio/rustle.wav"], "volume": 0.35 },
+      "interaction": { "sources": ["assets/audio/magic.wav"], "volume": 0.55 },
+      "puzzleSuccess": { "sources": ["assets/audio/discovery.wav"], "volume": 0.45 },
+      "pageRecovered": { "sources": ["assets/audio/page.wav"], "volume": 0.6 }
+    }
+  },
+  "storybook": {
+    "images": {
+      "library": "assets/storybook/library.png",
+      "sleepy-book-before": "assets/storybook/sleepy-book-before.png",
+      "sleepy-book-after": "assets/storybook/sleepy-book-after.png",
+      "bookshelf-before": "assets/storybook/bookshelf-before.png",
+      "bookshelf-bell": "assets/storybook/bookshelf-bell.png",
+      "bookshelf-handle": "assets/storybook/bookshelf-handle.png",
+      "paper-boat-before": "assets/storybook/paper-boat-before.png",
+      "paper-boat-after": "assets/storybook/paper-boat-after.png",
+      "pip": "assets/storybook/pip.png",
+      "page": "assets/storybook/page.png"
+    }
   }
 }

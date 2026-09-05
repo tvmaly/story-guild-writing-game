@@ -24,7 +24,7 @@ export class SelfTestRunner {
 
   constructor(
     private readonly controller: AppController,
-    private readonly normalSaveSnapshot: { primary: string | null; backup: string | null },
+    private readonly normalSaveSnapshot: { primary: string | null; backup: string | null; legacyPrimary: string | null; legacyBackup: string | null },
     private readonly diagnostics: RuntimeDiagnostics,
   ) {}
 
@@ -36,6 +36,10 @@ export class SelfTestRunner {
       await waitFor(() => Boolean(document.querySelector('canvas')));
       const canvas = document.querySelector('canvas');
       return Boolean(canvas && canvas.width > 0 && canvas.height > 0);
+    });
+    await this.check('Every illustrated scene and reaction asset loads', async () => {
+      await waitFor(() => document.body.dataset.artReady !== undefined, 10000);
+      return document.body.dataset.artReady === 'true';
     });
     await this.check('Test storage is real localStorage', () => {
       const probe = 'storyGuild.test.probe';
@@ -57,6 +61,9 @@ export class SelfTestRunner {
       const model = createQuestOnePrintModel(state.save, attempt);
       return model.storyText === attempt.artifact.storyText && model.wordCount === attempt.artifact.wordCount;
     });
+    await this.check('Completed page shows the exact child-authored story', () => {
+      return document.querySelector('.recovered-page blockquote')?.textContent === this.controller.getActiveAttempt()?.artifact?.storyText;
+    });
     await this.check('Copy completion persists in test storage', () => {
       const raw = localStorage.getItem(APP_CONFIG.storageKeys.test.primary);
       return raw?.includes('copyStatus') === true && raw.includes('completedAt');
@@ -64,7 +71,9 @@ export class SelfTestRunner {
     await this.check('No uncaught browser or asset-load errors', () => this.diagnostics.snapshot().entries.length === 0);
     await this.check('Normal save keys remain untouched', () => {
       return localStorage.getItem(APP_CONFIG.storageKeys.normal.primary) === this.normalSaveSnapshot.primary
-        && localStorage.getItem(APP_CONFIG.storageKeys.normal.backup) === this.normalSaveSnapshot.backup;
+        && localStorage.getItem(APP_CONFIG.storageKeys.normal.backup) === this.normalSaveSnapshot.backup
+        && localStorage.getItem(APP_CONFIG.storageKeys.legacy.primary) === this.normalSaveSnapshot.legacyPrimary
+        && localStorage.getItem(APP_CONFIG.storageKeys.legacy.backup) === this.normalSaveSnapshot.legacyBackup;
     });
 
     const passed = this.results.every((result) => result.passed);

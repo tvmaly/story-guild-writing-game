@@ -1,6 +1,7 @@
 # PLAN.md — The Story Guild: Quest for the Lost Pages
 
-**Status:** Agent-ready implementation specification  
+**Status:** Quest 1 redesign implemented with approved artwork; hands-on acceptance pending
+
 **Primary target:** iPad Safari  
 **Secondary target:** Current desktop browsers for development and automated verification  
 **Delivery model:** Static web application with local-only persistence  
@@ -8,9 +9,21 @@
 
 Summary: This plan defines the accepted product, curriculum, architecture, milestone gates, and verification contract for The Story Guild writing game.
 
-Status: Milestones 0 and 1 implemented; automated gates pass; physical iPad Safari verification remains outstanding.
+Status: The 2026-09-04 Quest 1 redesign has implemented logic, UI, and approved artwork. Automated browser and iPad Simulator gates pass; physical-iPad and child-playtest gates remain open. See `QUEST_01_REDESIGN.md` for current evidence.
 
 Keywords: Story Guild; micro stories; third-grade writing; iPad Safari; Phaser 3.90.0; Quest 1; runtime sprite configuration; configurable audio; GitHub Pages
+
+## Accepted Quest 1 Redesign — 2026-09-04
+
+Decision: The owner approved **Pip and the Runaway Page**, an illustrated, connected magical-library adventure for an eight-year-old playing mostly independently. The implementation specification and current evidence are in [QUEST_01_REDESIGN.md](QUEST_01_REDESIGN.md).
+
+Supersedes: For the redesigned opening and Quest 1, this decision replaces the top-down pixel-art requirement, walkable hub and D-pad/ACTION controls, six-tablet activity, three required written reflections, five mandatory planning fields, and deferred-audio/placeholder-art scope below. The earlier sections remain historical baseline specifications for legacy-save compatibility and the unimplemented course; future quest designs require the Quest 1 child playtest first.
+
+Decision: Use three connected scene puzzles, direct taps, optional planning, a child-authored 6–12-word story, local-device read-aloud, and bundled effects. Show an illustrated celebration after review; award completion only after paper-copy confirmation. Target 10–15 minutes before handwriting.
+
+Decision: Generate original illustrations during development with the imagegen skill. The owner approved `public/assets/storybook/sleepy-book-before.png` and the actual interface on 2026-09-04 before the remaining nine assets were generated. All ten images are bundled; provenance is in `STORYBOOK_ARTWORK.md`.
+
+Constraint: Preserve the twelve-lesson educational objectives, exact child wording, local persistence, print export, course attribution, nonviolent play, and the prohibition on runtime generative AI. Import v1 saves into separate v2 keys without overwriting the original values. Deployment is outside this implementation request.
 
 ### Accepted implementation decisions — 2026-08-29
 
